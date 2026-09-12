@@ -146,37 +146,43 @@ def generate_keys(problem_id):
     return redirect(url_for("index"))
 
 
-@app.route("/publish", methods=["POST"])
-def publish():
-    status = run_git("status", "--porcelain", "--", "docs")
+def commit_and_push(paths, message):
+    """Stages `paths`, commits, and pushes.
+    Returns (status, detail): status is "success", "no_changes", or "error"
+    (detail holds the error text in that case)."""
+    status = run_git("status", "--porcelain", "--", *paths)
     if status.returncode != 0:
-        flash(f"git status failed: {status.stderr}", "error")
-        return redirect(url_for("index"))
+        return "error", f"git status failed: {status.stderr}"
     if not status.stdout.strip():
-        flash("Nothing to publish - docs/ has no changes.", "success")
-        return redirect(url_for("index"))
+        return "no_changes", None
 
-    add = run_git("add", "docs")
+    add = run_git("add", *paths)
     if add.returncode != 0:
-        flash(f"git add failed: {add.stderr}", "error")
-        return redirect(url_for("index"))
+        return "error", f"git add failed: {add.stderr}"
 
-    message = f"Update problem bank via admin UI ({datetime.now().strftime('%Y-%m-%d %H:%M')})"
     commit = run_git("commit", "-m", message)
     if commit.returncode != 0:
-        flash(f"git commit failed: {commit.stderr or commit.stdout}", "error")
-        return redirect(url_for("index"))
+        return "error", f"git commit failed: {commit.stderr or commit.stdout}"
 
     push = run_git("push")
     if push.returncode != 0:
-        flash(
+        return "error", (
             f"Committed locally, but git push failed: {push.stderr}\n"
-            "Push manually once the issue is fixed.",
-            "error",
+            "Push manually once the issue is fixed."
         )
-        return redirect(url_for("index"))
+    return "success", None
 
-    flash("Published to GitHub - the live site will update shortly.", "success")
+
+@app.route("/publish", methods=["POST"])
+def publish():
+    message = f"Update problem bank via admin UI ({datetime.now().strftime('%Y-%m-%d %H:%M')})"
+    status, detail = commit_and_push(["docs"], message)
+    if status == "error":
+        flash(detail, "error")
+    elif status == "no_changes":
+        flash("Nothing to publish - docs/ has no changes.", "success")
+    else:
+        flash("Published to GitHub - the live site will update shortly.", "success")
     return redirect(url_for("index"))
 
 
@@ -184,9 +190,15 @@ def publish():
 def add_reference():
     try:
         bank.add_reference(request.form.get("label", ""), request.form.get("bibtex", ""))
-        flash("Reference added.", "success")
     except bank.ProblemBankError as e:
         flash(str(e), "error")
+        return redirect(url_for("index"))
+
+    status, detail = commit_and_push(["admin/references.json"], "Add reusable reference via admin UI")
+    if status == "error":
+        flash(f"Reference added locally, but {detail}", "error")
+    else:
+        flash("Reference added and committed to GitHub.", "success")
     return redirect(url_for("index"))
 
 
@@ -194,9 +206,15 @@ def add_reference():
 def remove_reference():
     try:
         bank.remove_reference(request.form.get("label", ""))
-        flash("Reference removed.", "success")
     except bank.ProblemBankError as e:
         flash(str(e), "error")
+        return redirect(url_for("index"))
+
+    status, detail = commit_and_push(["admin/references.json"], "Remove reusable reference via admin UI")
+    if status == "error":
+        flash(f"Reference removed locally, but {detail}", "error")
+    else:
+        flash("Reference removed and committed to GitHub.", "success")
     return redirect(url_for("index"))
 
 

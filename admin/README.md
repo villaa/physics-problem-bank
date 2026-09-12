@@ -49,6 +49,9 @@ binds to `127.0.0.1` (localhost) - nobody else on your network can reach it.
   per problem; all three combine into the Source box automatically (still
   editable by hand afterward). Stored in `admin/references.json` as
   `{label, bibtex}` entries, independent of `docs/data/problems.json`.
+  Unlike adding/removing a *problem*, saving or removing a reference
+  commits and pushes immediately - no separate "Publish to GitHub" step,
+  since it's small metadata you'd otherwise easily forget to publish.
 - **Remove**: a button per row in the existing-problems table.
 - **Validate all**: checks every entry against `docs/data/schema.json` and
   confirms referenced PDFs exist, same as `scripts/problems.py validate`.
