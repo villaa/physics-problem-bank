@@ -90,8 +90,26 @@
         </div>
       </div>
 
-      <label>Source</label>
-      <input type="text" name="source" placeholder="Original / adapted from ..." />
+      <div class="row">
+        <div>
+          <label>Reference</label>
+          <input type="text" id="reference-input" list="reference-list" placeholder="Original / textbook..." />
+          <datalist id="reference-list">
+            {% for r in references %}<option value="{{ r }}">{% endfor %}
+          </datalist>
+        </div>
+        <div>
+          <label>Section (optional)</label>
+          <input type="text" id="section-input" placeholder="e.g. Ch. 7" />
+        </div>
+        <div>
+          <label>Page (optional)</label>
+          <input type="text" id="page-input" placeholder="e.g. 142" />
+        </div>
+      </div>
+
+      <label>Source (auto-filled from above, still editable)</label>
+      <input type="text" id="source-input" name="source" placeholder="Original / adapted from ..." />
 
       <label>Statement PDF</label>
       <input type="file" name="statement_file" accept="application/pdf" required />
@@ -112,6 +130,30 @@
       <div>
         <button type="submit" class="primary">Add problem</button>
       </div>
+    </form>
+  </div>
+
+  <div class="panel">
+    <h2>Reusable references</h2>
+    <p style="color:var(--text-dim); font-size:0.85rem; margin-top:-8px;">
+      Saved here appear in the Reference dropdown above. Section/page stay per-problem.
+    </p>
+    <div style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:12px;">
+      {% for r in references %}
+      <form method="post" action="{{ url_for('remove_reference') }}" style="display:inline;">
+        <input type="hidden" name="text" value="{{ r }}" />
+        <button type="submit" class="tag-remove-btn" title="Remove"
+                style="background:#efefec; border:none; border-radius:999px; padding:4px 10px; font-size:0.8rem; cursor:pointer;">
+          {{ r }} &times;
+        </button>
+      </form>
+      {% else %}
+      <span style="color:var(--text-dim); font-size:0.85rem;">No references saved yet.</span>
+      {% endfor %}
+    </div>
+    <form method="post" action="{{ url_for('add_reference') }}" style="display:flex; gap:8px;">
+      <input type="text" name="text" placeholder="e.g. Halliday & Resnick, 10th ed." required style="flex:1;" />
+      <button type="submit" class="secondary">Save reference</button>
     </form>
   </div>
 
@@ -170,6 +212,22 @@ document.getElementById("generate-id-btn").addEventListener("click", () => {
   } while (existingIds.has(candidate));
   document.getElementById("id-input").value = candidate;
 });
+
+const referenceInput = document.getElementById("reference-input");
+const sectionInput = document.getElementById("section-input");
+const pageInput = document.getElementById("page-input");
+const sourceInput = document.getElementById("source-input");
+
+function composeSource() {
+  const parts = [referenceInput.value.trim()];
+  if (sectionInput.value.trim()) parts.push(`§${sectionInput.value.trim()}`);
+  if (pageInput.value.trim()) parts.push(`p. ${pageInput.value.trim()}`);
+  sourceInput.value = parts.filter(Boolean).join(", ");
+}
+
+[referenceInput, sectionInput, pageInput].forEach((el) =>
+  el.addEventListener("input", composeSource)
+);
 
 const container = document.getElementById("solutions-container");
 

@@ -51,6 +51,7 @@ def index():
         difficulties=DIFFICULTIES,
         types=TYPES,
         unpublished=unpublished,
+        references=bank.load_references(),
     )
 
 
@@ -151,6 +152,26 @@ def publish():
         return redirect(url_for("index"))
 
     flash("Published to GitHub - the live site will update shortly.", "success")
+    return redirect(url_for("index"))
+
+
+@app.route("/references/add", methods=["POST"])
+def add_reference():
+    try:
+        bank.add_reference(request.form.get("text", ""))
+        flash("Reference added.", "success")
+    except bank.ProblemBankError as e:
+        flash(str(e), "error")
+    return redirect(url_for("index"))
+
+
+@app.route("/references/remove", methods=["POST"])
+def remove_reference():
+    try:
+        bank.remove_reference(request.form.get("text", ""))
+        flash("Reference removed.", "success")
+    except bank.ProblemBankError as e:
+        flash(str(e), "error")
     return redirect(url_for("index"))
 
 

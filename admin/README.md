@@ -36,6 +36,11 @@ binds to `127.0.0.1` (localhost) - nobody else on your network can reach it.
   same code path as `scripts/problems.py add` - PDFs get copied into
   `docs/problems/<id>/`, or (if protected) hashed/uploaded to Cloudflare
   KV + R2.
+- **Reusable references**: save a citation once (e.g. a textbook edition) and
+  it appears in the Reference dropdown when adding future problems. Section
+  and Page are separate optional fields per problem; all three combine into
+  the Source box automatically (still editable by hand afterward). Stored in
+  `admin/references.json`, independent of `docs/data/problems.json`.
 - **Remove**: a button per row in the existing-problems table.
 - **Validate all**: checks every entry against `docs/data/schema.json` and
   confirms referenced PDFs exist, same as `scripts/problems.py validate`.

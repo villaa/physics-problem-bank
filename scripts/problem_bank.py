@@ -17,6 +17,7 @@ SCHEMA_FILE = DOCS / "data" / "schema.json"
 PROBLEMS_DIR = DOCS / "problems"
 WORKER_DIR = ROOT / "worker"
 R2_BUCKET = "physics-problem-bank-protected"
+REFERENCES_FILE = ROOT / "admin" / "references.json"
 
 
 class ProblemBankError(Exception):
@@ -224,3 +225,39 @@ def list_problems(subject=None, protected_only=False):
         if (not subject or p.get("subject") == subject)
         and (not protected_only or p.get("protected"))
     ]
+
+
+def load_references():
+    """Reusable base citations (e.g. textbook editions), independent of any
+    one problem's section/page - kept separate so they don't accumulate
+    duplicates the way full 'source' strings would (page numbers differ per
+    problem)."""
+    if not REFERENCES_FILE.exists():
+        return []
+    return json.loads(REFERENCES_FILE.read_text())
+
+
+def save_references(refs):
+    REFERENCES_FILE.parent.mkdir(parents=True, exist_ok=True)
+    REFERENCES_FILE.write_text(json.dumps(sorted(refs, key=str.lower), indent=2) + "\n")
+
+
+def add_reference(text):
+    text = text.strip()
+    if not text:
+        raise ProblemBankError("reference text cannot be empty")
+    refs = load_references()
+    if text in refs:
+        raise ProblemBankError(f"reference already exists: {text}")
+    refs.append(text)
+    save_references(refs)
+    return refs
+
+
+def remove_reference(text):
+    refs = load_references()
+    if text not in refs:
+        raise ProblemBankError(f"reference not found: {text}")
+    refs.remove(text)
+    save_references(refs)
+    return refs
