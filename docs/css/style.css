@@ -33,6 +33,31 @@ header p {
   color: var(--text-dim);
 }
 
+.help {
+  margin-top: 10px;
+  font-size: 0.85rem;
+}
+
+.help summary {
+  cursor: pointer;
+  color: var(--accent);
+  font-weight: 500;
+}
+
+.help ul {
+  margin: 8px 0 0;
+  padding-left: 20px;
+  color: var(--text-dim);
+}
+
+.help li {
+  margin-bottom: 6px;
+}
+
+.help li:last-child {
+  margin-bottom: 0;
+}
+
 .controls {
   max-width: 1100px;
   margin: 0 auto;
