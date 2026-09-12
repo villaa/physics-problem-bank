@@ -34,8 +34,9 @@ Needed only for generating/revoking keys, or editing a problem that's
 `protected` (those touch the R2 bucket and the KV key pool). Skip this if
 they'll only work with public problems.
 
-Don't share your Cloudflare login. Instead, create them a scoped API
-token:
+They do **not** need their own Cloudflare account - a token is a
+credential on *your* account, not a login. Don't share your Cloudflare
+login itself, though; instead create them a scoped API token:
 
 1. Cloudflare dashboard → your profile icon → **API Tokens** → **Create
    Token** → **Create Custom Token**.
