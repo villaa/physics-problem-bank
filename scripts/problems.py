@@ -19,7 +19,7 @@ Examples:
       --statement ./statement.pdf --solution "Energy:./sol.pdf" \\
       --protected
 
-  python3 scripts/problems.py generate-keys quiz3-p2 --count 30
+  python3 scripts/problems.py generate-keys quiz3-p2 --count 30 --expires-days 30
   python3 scripts/problems.py key-count quiz3-p2
 
   python3 scripts/problems.py remove mech-projectile-003
@@ -86,14 +86,14 @@ def cmd_remove(args):
 
 def cmd_generate_keys(args):
     try:
-        keys = bank.generate_keys(args.id, args.count)
+        keys = bank.generate_keys(args.id, args.count, expires_days=args.expires_days)
     except bank.ProblemBankError as e:
         print(f"error: {e}")
         sys.exit(1)
-    print(f"Generated {len(keys)} one-time key(s) for '{args.id}':\n")
+    print(f"Generated {len(keys)} one-time key(s) for '{args.id}', valid for {args.expires_days} day(s):\n")
     for k in keys:
         print(f"  {k}")
-    print(f"\nTotal unredeemed keys for '{args.id}': {bank.key_count(args.id)}")
+    print(f"\nTotal unredeemed, unexpired keys for '{args.id}': {bank.key_count(args.id)}")
     print("These are shown once - distribute them now, they can't be recovered later.")
 
 
@@ -150,6 +150,7 @@ def main():
     p_genkeys = sub.add_parser("generate-keys", help="generate one-time solution-unlock keys for a protected problem")
     p_genkeys.add_argument("id")
     p_genkeys.add_argument("--count", type=int, default=1)
+    p_genkeys.add_argument("--expires-days", type=int, default=30, help="days until these keys expire (default 30)")
     p_genkeys.set_defaults(func=cmd_generate_keys)
 
     p_keycount = sub.add_parser("key-count", help="print how many unredeemed keys remain for a protected problem")

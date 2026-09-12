@@ -45,8 +45,10 @@ python3 scripts/problems.py add --id quiz3-p2 \
 
 # Generate a batch of one-time keys (e.g. one per student) whenever you're
 # ready to hand them out. Each run adds to the pool; existing keys are
-# unaffected.
-python3 scripts/problems.py generate-keys quiz3-p2 --count 30
+# unaffected. Keys expire on their own after --expires-days (default 30) -
+# an unused key past that date stops working even though it was never
+# redeemed.
+python3 scripts/problems.py generate-keys quiz3-p2 --count 30 --expires-days 30
 
 # How many keys are still unredeemed:
 python3 scripts/problems.py key-count quiz3-p2
@@ -68,18 +70,23 @@ them.
 ## How it works
 
 - Each protected problem has a KV entry (`PROBLEM_KEYS`, keyed by problem
-  id) holding `{"keyHashes": ["<sha256 hex>", ...]}` — a pool of unredeemed
-  keys. `generate-keys` appends new hashes to this pool.
+  id) holding `{"keys": [{"hash": "<sha256 hex>", "expiresAt": "<ISO8601>"}, ...]}`
+  — a pool of unredeemed keys, each with its own expiry. `generate-keys`
+  appends new entries to this pool (and opportunistically drops already-
+  expired ones it finds while it's there).
 - When a student enters a key, `docs/js/app.js` calls
   `POST /problem/:id/redeem` with `{key, files}` (files = every solution PDF
   path for that problem, from `problems.json`).
 - The Worker hashes the submitted key, and if it's in the pool: removes it
-  (one-time use enforced server-side, not just client-side) *then* returns
-  every requested solution file, base64-encoded, in that single response —
-  so one key unlocks all of a problem's solution methods at once, not just
+  (one-time use enforced server-side, not just client-side), checks whether
+  it's past its `expiresAt` (if so, `403 expired_key` - no files released),
+  and otherwise returns every requested solution file, base64-encoded, in
+  that single response — so one key unlocks all of a problem's solution
+  methods at once, not just
   the first one you happen to click.
-- Wrong or already-used key → `403`. Without the correct key, no solution
-  bytes ever leave R2.
+- Wrong, already-used, or expired key → `403` (`error: "invalid_key"` or
+  `"expired_key"`). Without a valid, live key, no solution bytes ever leave
+  R2.
 - This relies on Cloudflare KV's read-modify-write, not a real transaction —
   two students submitting the same key in the same instant could both
   succeed in a narrow race window. Not a concern at classroom scale (KV

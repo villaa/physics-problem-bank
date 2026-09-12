@@ -36,11 +36,13 @@ binds to `127.0.0.1` (localhost) - nobody else on your network can reach it.
   as `scripts/problems.py add`. The statement is always public; a protected
   problem's solutions upload to Cloudflare R2 instead of `docs/problems/`.
 - **Generate keys**: each protected problem gets a "Generate" control in the
-  existing-problems table - pick a count, submit, and the new one-time keys
-  are shown once in the flash message right after (copy them immediately;
-  they can't be looked up again). One key unlocks *all* of a problem's
-  solutions at once and is consumed the moment it's used. The "N left"
-  count next to the control tracks unredeemed keys.
+  existing-problems table - pick a count and an expiry (in days, default
+  30), submit, and the new one-time keys are shown once in the flash
+  message right after (copy them immediately; they can't be looked up
+  again). One key unlocks *all* of a problem's solutions at once and is
+  consumed the moment it's used; an unused key also stops working once it
+  passes its expiry date. The "N left" count next to the control tracks
+  unredeemed, unexpired keys.
 - **Reusable references**: save a citation once (e.g. a textbook edition),
   optionally with its BibTeX entry, and it appears in the Reference dropdown
   when adding future problems. Section and Page are separate optional fields

@@ -220,8 +220,11 @@ async function unlockSolutions(problem, tabs, frame, lockArea) {
       }
     );
     if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
       errorEl.textContent =
-        res.status === 403
+        data.error === "expired_key"
+          ? "This key has expired - ask your instructor for a new one."
+          : res.status === 403
           ? "Incorrect key, or it's already been used - keys work once."
           : res.status === 404
           ? "No keys are available for this problem yet."

@@ -13,7 +13,8 @@ A searchable, web-based repository of physics problems and solutions.
   answer-key packet from the solutions.
 - **Protected solutions**: a problem's statement is always public; its
   solutions can instead require a one-time key (generate a batch, hand one
-  per student — each works exactly once, then it's consumed). Handled by a
+  per student — each works exactly once, then it's consumed, and unused
+  ones expire on their own after a set number of days). Handled by a
   small Cloudflare Worker in `worker/` — see `worker/README.md` to deploy it
   once you have a (free) Cloudflare account.
 
@@ -50,7 +51,7 @@ python3 scripts/problems.py add --id quiz3-p2 \
     --statement ./statement.pdf --solution "Energy:./sol.pdf" \
     --protected
 
-python3 scripts/problems.py generate-keys quiz3-p2 --count 30
+python3 scripts/problems.py generate-keys quiz3-p2 --count 30 --expires-days 30
 python3 scripts/problems.py key-count quiz3-p2
 
 python3 scripts/problems.py remove mech-projectile-003

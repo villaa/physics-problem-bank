@@ -9,6 +9,7 @@ import secrets
 import shutil
 import subprocess
 import sys
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -190,7 +191,8 @@ def remove_problem(id):
 
 def _kv_get_key_pool(problem_id):
     """Raw KV read that tolerates a missing key (returns an empty pool)
-    instead of raising, since 'no keys generated yet' is a normal state."""
+    instead of raising, since 'no keys generated yet' is a normal state.
+    Pool shape: {"keys": [{"hash": "<sha256 hex>", "expiresAt": "<ISO8601>"}]}."""
     npx = shutil.which("npx")
     if not npx:
         raise ProblemBankError("'npx' not found on PATH (needed to run wrangler)")
@@ -202,12 +204,12 @@ def _kv_get_key_pool(problem_id):
         capture_output=True,
     )
     if result.returncode != 0 or not result.stdout.strip():
-        return {"keyHashes": []}
+        return {"keys": []}
     try:
         parsed = json.loads(result.stdout)
     except json.JSONDecodeError:
-        return {"keyHashes": []}
-    return {"keyHashes": list(parsed.get("keyHashes", []))}
+        return {"keys": []}
+    return {"keys": list(parsed.get("keys", []))}
 
 
 def _kv_put_key_pool(problem_id, pool):
@@ -221,14 +223,21 @@ def _kv_delete(problem_id):
     wrangler("kv", "key", "delete", "--binding=PROBLEM_KEYS", problem_id, "--remote", confirm=True)
 
 
-def generate_keys(problem_id, count):
+def _is_live(entry, now):
+    return datetime.fromisoformat(entry["expiresAt"]) > now
+
+
+def generate_keys(problem_id, count, expires_days=30):
     """Generates `count` new one-time-use hex keys for a protected problem's
-    solutions, adds their hashes to the KV pool, and returns the new
-    PLAINTEXT keys - the only time they're ever visible. Distribute them
-    immediately; they cannot be recovered afterward, only revoked (by
-    removing and re-adding the problem, which clears the whole pool)."""
+    solutions, each expiring `expires_days` from now, adds them to the KV
+    pool, and returns the new PLAINTEXT keys - the only time they're ever
+    visible. Distribute them immediately; they cannot be recovered
+    afterward, only revoked early (by removing and re-adding the problem,
+    which clears the whole pool)."""
     if count < 1:
         raise ProblemBankError("count must be at least 1")
+    if expires_days < 1:
+        raise ProblemBankError("expires_days must be at least 1")
 
     problems = load_problems()
     match = next((p for p in problems if p["id"] == problem_id), None)
@@ -237,9 +246,14 @@ def generate_keys(problem_id, count):
     if not match.get("protected"):
         raise ProblemBankError(f"'{problem_id}' is not a protected problem")
 
+    now = datetime.now(timezone.utc)
     pool = _kv_get_key_pool(problem_id)
-    existing_hashes = set(pool["keyHashes"])
+    # Drop already-expired entries while we're here rather than letting the
+    # pool grow forever.
+    live_entries = [e for e in pool["keys"] if _is_live(e, now)]
+    existing_hashes = {e["hash"] for e in live_entries}
 
+    expires_at = (now + timedelta(days=expires_days)).isoformat()
     new_keys = []
     while len(new_keys) < count:
         candidate = secrets.token_hex(4)
@@ -248,14 +262,16 @@ def generate_keys(problem_id, count):
             continue
         new_keys.append(candidate)
         existing_hashes.add(h)
+        live_entries.append({"hash": h, "expiresAt": expires_at})
 
-    _kv_put_key_pool(problem_id, {"keyHashes": sorted(existing_hashes)})
+    _kv_put_key_pool(problem_id, {"keys": live_entries})
     return new_keys
 
 
 def key_count(problem_id):
-    """How many unredeemed keys remain for a protected problem."""
-    return len(_kv_get_key_pool(problem_id)["keyHashes"])
+    """How many unredeemed, unexpired keys remain for a protected problem."""
+    now = datetime.now(timezone.utc)
+    return sum(1 for e in _kv_get_key_pool(problem_id)["keys"] if _is_live(e, now))
 
 
 def validate_all():

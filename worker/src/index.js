@@ -13,7 +13,7 @@
 // Bindings (see wrangler.toml):
 //   PROBLEM_KEYS   - KV namespace. One entry per protected problem:
 //       key:   problemId
-//       value: JSON {"keyHashes": ["<sha256 hex>", ...]}  (one-time-use pool)
+//       value: JSON {"keys": [{"hash": "<sha256 hex>", "expiresAt": "<ISO8601>"}, ...]}
 //   PROTECTED_PDFS - R2 bucket. Objects stored at "<problemId>/<filePath>".
 
 const ALLOWED_ORIGIN = "https://villaa.github.io";
@@ -45,20 +45,25 @@ export default {
     }
 
     const record = await env.PROBLEM_KEYS.get(problemId, "json");
-    const keyHashes = (record && record.keyHashes) || [];
-    if (keyHashes.length === 0) {
+    const keys = (record && record.keys) || [];
+    if (keys.length === 0) {
       return json({ error: "not_found" }, 404);
     }
 
     const providedHash = await sha256Hex(key);
-    const idx = keyHashes.indexOf(providedHash);
+    const idx = keys.findIndex((k) => k.hash === providedHash);
     if (idx === -1) {
       return json({ error: "invalid_key" }, 403);
     }
 
-    // Consume the key (remove it from the pool) before releasing anything.
-    const remaining = keyHashes.slice(0, idx).concat(keyHashes.slice(idx + 1));
-    await env.PROBLEM_KEYS.put(problemId, JSON.stringify({ keyHashes: remaining }));
+    // Remove the matched entry either way - expired or not, it's spent.
+    const matched = keys[idx];
+    const remaining = keys.slice(0, idx).concat(keys.slice(idx + 1));
+    await env.PROBLEM_KEYS.put(problemId, JSON.stringify({ keys: remaining }));
+
+    if (new Date(matched.expiresAt).getTime() <= Date.now()) {
+      return json({ error: "expired_key" }, 403);
+    }
 
     const result = {};
     for (const filePath of files) {

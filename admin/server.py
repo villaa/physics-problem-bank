@@ -126,20 +126,21 @@ def remove(problem_id):
 def generate_keys(problem_id):
     try:
         count = int(request.form.get("count", "1"))
+        expires_days = int(request.form.get("expires_days", "30"))
     except ValueError:
-        flash("Key count must be a number.", "error")
+        flash("Key count and expiry must be numbers.", "error")
         return redirect(url_for("index"))
 
     try:
-        keys = bank.generate_keys(problem_id, count)
+        keys = bank.generate_keys(problem_id, count, expires_days=expires_days)
     except bank.ProblemBankError as e:
         flash(str(e), "error")
         return redirect(url_for("index"))
 
     flash(
-        f"Generated {len(keys)} key(s) for '{problem_id}' - shown once, copy them now:\n"
+        f"Generated {len(keys)} key(s) for '{problem_id}', valid {expires_days} day(s) - shown once, copy them now:\n"
         + "\n".join(keys)
-        + f"\n\nTotal unredeemed keys for '{problem_id}': {bank.key_count(problem_id)}",
+        + f"\n\nTotal unredeemed, unexpired keys for '{problem_id}': {bank.key_count(problem_id)}",
         "success",
     )
     return redirect(url_for("index"))
