@@ -17,8 +17,13 @@ A searchable, web-based repository of physics problems and solutions.
 
 ## Managing problems
 
-Use `scripts/problems.py` (Python 3, no extra dependencies) for everything —
-adding, removing, listing, and validating problems, public or protected:
+Two ways to manage content — both call the same underlying logic
+(`scripts/problem_bank.py`), so pick whichever you prefer:
+
+- **Web form** (`admin/`) — a local browser UI for adding/removing problems
+  without typing commands. See `admin/README.md`.
+- **CLI** (`scripts/problems.py`, Python 3, no extra dependencies) — for
+  scripting or quick one-liners:
 
 ```bash
 # Public problem

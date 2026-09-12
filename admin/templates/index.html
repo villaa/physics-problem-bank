@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Physics Problem Bank - Admin</title>
+<style>
+  :root { --bg: #f7f7f5; --panel: #fff; --border: #e0ded8; --text: #262624; --text-dim: #6b6a66; --accent: #b45309; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; background: var(--bg); color: var(--text); }
+  header { padding: 20px; max-width: 900px; margin: 0 auto; }
+  header h1 { margin: 0 0 4px; font-size: 1.4rem; }
+  header p { margin: 0; color: var(--text-dim); }
+  main { max-width: 900px; margin: 0 auto; padding: 0 20px 60px; }
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-bottom: 24px; }
+  .panel h2 { margin-top: 0; font-size: 1.1rem; }
+  label { display: block; font-size: 0.85rem; color: var(--text-dim); margin: 10px 0 4px; }
+  input[type=text], input[type=file], select, textarea {
+    width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.9rem;
+  }
+  .row { display: flex; gap: 12px; flex-wrap: wrap; }
+  .row > div { flex: 1 1 200px; }
+  .solution-row { display: flex; gap: 8px; margin-bottom: 8px; align-items: center; }
+  .solution-row input[type=text] { flex: 1 1 150px; }
+  .solution-row input[type=file] { flex: 2 1 200px; }
+  .remove-row-btn { background: none; border: none; color: #b91c1c; cursor: pointer; font-size: 1.1rem; }
+  button.primary { background: var(--accent); color: #fff; border: none; border-radius: 6px; padding: 10px 18px; font-size: 0.95rem; cursor: pointer; margin-top: 14px; }
+  button.secondary { background: var(--panel); border: 1px solid var(--border); border-radius: 6px; padding: 8px 14px; font-size: 0.85rem; cursor: pointer; }
+  button.danger { background: none; border: 1px solid #b91c1c; color: #b91c1c; border-radius: 6px; padding: 6px 12px; font-size: 0.8rem; cursor: pointer; }
+  .flash { padding: 10px 14px; border-radius: 8px; margin-bottom: 10px; font-size: 0.9rem; }
+  .flash.success { background: #ecfdf3; color: #067647; border: 1px solid #abefc6; }
+  .flash.error { background: #fef3f2; color: #b91c1c; border: 1px solid #fda29b; white-space: pre-wrap; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+  th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--border); }
+  .lock { color: var(--accent); }
+  #add-solution-btn { margin-bottom: 12px; }
+  fieldset { border: 1px solid var(--border); border-radius: 8px; margin-top: 14px; padding: 10px 14px; }
+  fieldset[disabled] { opacity: 0.5; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Physics Problem Bank — Admin</h1>
+  <p>Local tool. Only reachable from this computer.</p>
+</header>
+<main>
+  {% for category, message in get_flashed_messages(with_categories=true) %}
+    <div class="flash {{ category }}">{{ message }}</div>
+  {% endfor %}
+
+  <div class="panel">
+    <h2>Add a problem</h2>
+    <form method="post" action="{{ url_for('add') }}" enctype="multipart/form-data">
+      <div class="row">
+        <div>
+          <label>Id (unique, no spaces)</label>
+          <input type="text" name="id" required pattern="[a-zA-Z0-9\-_]+" />
+        </div>
+        <div>
+          <label>Subject</label>
+          <input type="text" name="subject" required list="subject-list" />
+          <datalist id="subject-list">
+            {% for s in subjects %}<option value="{{ s }}">{% endfor %}
+          </datalist>
+        </div>
+        <div>
+          <label>Topic</label>
+          <input type="text" name="topic" required />
+        </div>
+      </div>
+
+      <div class="row">
+        <div>
+          <label>Difficulty</label>
+          <select name="difficulty" required>
+            {% for d in difficulties %}<option value="{{ d }}">{{ d }}</option>{% endfor %}
+          </select>
+        </div>
+        <div>
+          <label>Type</label>
+          <select name="type" required>
+            {% for t in types %}<option value="{{ t }}">{{ t }}</option>{% endfor %}
+          </select>
+        </div>
+        <div>
+          <label>Tags (comma separated)</label>
+          <input type="text" name="tags" />
+        </div>
+      </div>
+
+      <label>Source</label>
+      <input type="text" name="source" placeholder="Original / adapted from ..." />
+
+      <label>Statement PDF</label>
+      <input type="file" name="statement_file" accept="application/pdf" required />
+
+      <label style="margin-top:16px;">Solutions</label>
+      <div id="solutions-container"></div>
+      <button type="button" id="add-solution-btn" class="secondary">+ Add solution</button>
+
+      <fieldset id="protected-fields">
+        <label style="margin-top:0;">
+          <input type="checkbox" id="protected-toggle" name="protected" style="width:auto;display:inline;" />
+          Protect this problem with an access key
+        </label>
+        <label>Access key (plaintext - shown once, share with students)</label>
+        <input type="text" id="key-input" name="key" />
+      </fieldset>
+
+      <div>
+        <button type="submit" class="primary">Add problem</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="panel">
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+      <h2>Existing problems ({{ problems|length }})</h2>
+      <form method="post" action="{{ url_for('validate') }}">
+        <button type="submit" class="secondary">Validate all</button>
+      </form>
+    </div>
+    <table>
+      <thead>
+        <tr><th>Id</th><th>Subject</th><th>Topic</th><th>Difficulty</th><th></th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for p in problems %}
+        <tr>
+          <td>{{ p.id }}</td>
+          <td>{{ p.subject }}</td>
+          <td>{{ p.topic }}</td>
+          <td>{{ p.difficulty }}</td>
+          <td>{% if p.protected %}<span class="lock">locked</span>{% endif %}</td>
+          <td>
+            <form method="post" action="{{ url_for('remove', problem_id=p.id) }}"
+                  onsubmit="return confirm('Remove {{ p.id }}? This cannot be undone.');">
+              <button type="submit" class="danger">Remove</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</main>
+
+<script>
+const container = document.getElementById("solutions-container");
+
+function addSolutionRow() {
+  const row = document.createElement("div");
+  row.className = "solution-row";
+  row.innerHTML = `
+    <input type="text" name="solution_method" placeholder="Method (e.g. Energy methods)" />
+    <input type="file" name="solution_file" accept="application/pdf" />
+    <button type="button" class="remove-row-btn" title="Remove">&times;</button>
+  `;
+  row.querySelector(".remove-row-btn").addEventListener("click", () => row.remove());
+  container.appendChild(row);
+}
+
+document.getElementById("add-solution-btn").addEventListener("click", addSolutionRow);
+addSolutionRow();
+
+const protectedToggle = document.getElementById("protected-toggle");
+const keyInput = document.getElementById("key-input");
+protectedToggle.addEventListener("change", () => {
+  keyInput.required = protectedToggle.checked;
+});
+</script>
+</body>
+</html>
