@@ -23,5 +23,22 @@
     ],
     "source": "Sample placeholder - replace with real content",
     "protected": false
+  },
+  {
+    "id": "0231bb11",
+    "subject": "projectile motion",
+    "topic": "2D motion with constant accel.",
+    "tags": [],
+    "difficulty": "intro",
+    "type": "problem",
+    "statement_pdf": "statement.pdf",
+    "solutions": [
+      {
+        "method": "Newton's Law and Calculus",
+        "pdf": "solutions/newton-s-law-and-calculus.pdf"
+      }
+    ],
+    "source": "University Physics, Young & Freedman, \u00a7Ch. 3, p. problem 3.19",
+    "protected": true
   }
 ]
