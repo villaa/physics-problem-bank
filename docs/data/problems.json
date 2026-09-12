@@ -23,17 +23,5 @@
     ],
     "source": "Sample placeholder - replace with real content",
     "protected": false
-  },
-  {
-    "id": "publish-test-001",
-    "subject": "Mechanics",
-    "topic": "Publish Button Test",
-    "tags": [],
-    "difficulty": "intro",
-    "type": "problem",
-    "statement_pdf": "statement.pdf",
-    "solutions": [],
-    "source": "Publish test",
-    "protected": false
   }
 ]
