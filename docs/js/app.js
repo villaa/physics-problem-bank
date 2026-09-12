@@ -124,12 +124,21 @@ function escapeHtml(str) {
 
 // ---- Detail modal ----
 
+function publicPdfUrl(problem, relPath) {
+  return `problems/${problem.id}/${relPath}`;
+}
+
 function openDetail(problem) {
   overlay.hidden = false;
   if (problem.protected) {
     renderLockedDetail(problem);
   } else {
-    renderUnlockedDetail(problem, problem.statement_pdf, problem.solutions);
+    const statementUrl = publicPdfUrl(problem, problem.statement_pdf);
+    const solutions = (problem.solutions || []).map((s) => ({
+      method: s.method,
+      pdf: publicPdfUrl(problem, s.pdf),
+    }));
+    renderUnlockedDetail(problem, statementUrl, solutions);
   }
 }
 
@@ -270,9 +279,9 @@ async function buildWorksheet() {
   const answerDoc = await PDFLib.PDFDocument.create();
 
   for (const p of unprotectedSelected) {
-    await appendPdf(statementDoc, p.statement_pdf);
+    await appendPdf(statementDoc, publicPdfUrl(p, p.statement_pdf));
     for (const sol of p.solutions || []) {
-      await appendPdf(answerDoc, sol.pdf);
+      await appendPdf(answerDoc, publicPdfUrl(p, sol.pdf));
     }
   }
 

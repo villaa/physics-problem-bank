@@ -16,25 +16,36 @@ npx wrangler kv namespace create PROBLEM_KEYS
 # copy the returned "id" into wrangler.toml's [[kv_namespaces]] block
 
 npx wrangler r2 bucket create physics-problem-bank-protected
+# (Cloudflare may first require enabling R2 once from the dashboard)
 
 npx wrangler deploy
 ```
 
-`wrangler deploy` prints the Worker's URL
-(`https://physics-problem-bank-worker.<your-subdomain>.workers.dev`).
-Paste that into `docs/js/config.js` as `WORKER_URL`.
+`wrangler deploy` prints the Worker's URL. If your account has no
+`workers.dev` subdomain yet, register one from the dashboard link it shows,
+then run `npx wrangler deploy` again. Paste the final URL into
+`docs/js/config.js` as `WORKER_URL`.
 
-## Adding a protected problem
+## Adding or removing a protected problem
+
+Use `scripts/problems.py` from the repo root (not a Worker-specific script —
+it handles public and protected problems together and keeps
+`docs/data/problems.json` in sync):
 
 ```bash
-cd worker
-./scripts/add-protected-problem.sh <problem-id> <plaintext-key> <statement-pdf> \
-    [solution-name:solution-pdf ...]
+python3 scripts/problems.py add --id quiz3-p2 \
+    --subject Mechanics --topic "Work and Energy" \
+    --difficulty intermediate --type problem \
+    --statement ./statement.pdf --solution "Energy:./sol.pdf" \
+    --protected --key "fall2026-quiz3"
+
+python3 scripts/problems.py remove quiz3-p2
 ```
 
-This hashes the key (SHA-256, never stored in plaintext), uploads the PDF(s)
-to the private R2 bucket, and prints the key to hand out to students. Then
-add a matching entry to `docs/data/problems.json` with `"protected": true`.
+`add --protected` hashes the key (SHA-256, never stored in plaintext),
+uploads the PDF(s) to the private R2 bucket, adds the KV entry, and appends
+the metadata to `problems.json`. `remove` cleans up KV, R2, and the metadata
+entry together.
 
 ## How it works
 

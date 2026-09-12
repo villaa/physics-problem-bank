@@ -15,36 +15,46 @@ A searchable, web-based repository of physics problems and solutions.
   access key. That's handled by a small Cloudflare Worker in `worker/` — see
   `worker/README.md` to deploy it once you have a (free) Cloudflare account.
 
-## Adding a public problem
+## Managing problems
 
-1. Pick an id, e.g. `mech-projectile-003`.
-2. Put its PDFs under `docs/problems/mech-projectile-003/`:
-   - `statement.pdf` (the problem + any diagram)
-   - `solutions/<method-name>.pdf` for each solution approach
-3. Add an entry to `docs/data/problems.json`:
+Use `scripts/problems.py` (Python 3, no extra dependencies) for everything —
+adding, removing, listing, and validating problems, public or protected:
 
-```json
-{
-  "id": "mech-projectile-003",
-  "subject": "Mechanics",
-  "topic": "Projectile Motion",
-  "tags": ["projectile", "kinematics"],
-  "difficulty": "intro",
-  "type": "problem",
-  "statement_pdf": "problems/mech-projectile-003/statement.pdf",
-  "solutions": [
-    { "method": "Kinematic equations", "pdf": "problems/mech-projectile-003/solutions/kinematics.pdf" }
-  ],
-  "source": "Original",
-  "protected": false
-}
+```bash
+# Public problem
+python3 scripts/problems.py add --id mech-projectile-003 \
+    --subject Mechanics --topic "Projectile Motion" \
+    --difficulty intro --type problem \
+    --statement ~/Desktop/problem.pdf \
+    --solution "Kinematics:~/Desktop/solution.pdf" \
+    --tags projectile,kinematics --source Original
+
+# Protected problem (needs the Cloudflare Worker deployed - see worker/README.md)
+python3 scripts/problems.py add --id quiz3-p2 \
+    --subject Mechanics --topic "Work and Energy" \
+    --difficulty intermediate --type problem \
+    --statement ./statement.pdf --solution "Energy:./sol.pdf" \
+    --protected --key "fall2026-quiz3"
+
+python3 scripts/problems.py remove mech-projectile-003
+python3 scripts/problems.py list --subject Mechanics
+python3 scripts/problems.py validate
 ```
 
-4. Commit and push — GitHub Pages redeploys automatically.
+`add` copies the PDF(s) into place (or uploads them to the private R2
+bucket, for protected problems) and appends the metadata entry;
+`remove` deletes both the metadata and the files/R2-KV data together.
+After `add`/`remove`, commit and push `docs/` — GitHub Pages redeploys
+automatically; protected problems' Cloudflare data is already live as
+soon as the command finishes.
 
-## Adding a protected problem
+### Refining the schema
 
-See `worker/README.md`.
+`docs/data/problems.json` entries are checked against
+`docs/data/schema.json` — a plain-JSON description of each field's type and
+allowed values. To add, remove, or restrict a field, edit `schema.json`,
+then run `python3 scripts/problems.py validate` to see which existing
+entries need updating to match.
 
 ## Local preview
 

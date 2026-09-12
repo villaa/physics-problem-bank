@@ -1,0 +1,15 @@
+{
+  "$comment": "Schema for entries in problems.json. Add, remove, or rename fields here, then run 'python3 scripts/problems.py validate' to see what existing entries need updating.",
+  "fields": {
+    "id": { "type": "string", "required": true },
+    "subject": { "type": "string", "required": true },
+    "topic": { "type": "string", "required": true },
+    "tags": { "type": "array", "required": false },
+    "difficulty": { "type": "string", "required": true, "enum": ["intro", "intermediate", "advanced"] },
+    "type": { "type": "string", "required": true, "enum": ["problem", "conceptual", "derivation"] },
+    "statement_pdf": { "type": "string", "required": true },
+    "solutions": { "type": "array", "required": false },
+    "source": { "type": "string", "required": false },
+    "protected": { "type": "boolean", "required": true }
+  }
+}
