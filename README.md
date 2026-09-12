@@ -23,6 +23,8 @@ A searchable, web-based repository of physics problems and solutions.
 New machine? See `SETUP.md` for Windows/macOS/Linux install steps
 (Git, Python, Node.js, GitHub CLI) through to a running admin UI.
 
+Adding a colleague as a second admin? See `COLLABORATORS.md`.
+
 ## Managing problems
 
 Two ways to manage content — both call the same underlying logic
