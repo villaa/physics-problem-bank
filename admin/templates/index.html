@@ -150,21 +150,17 @@
 <script>
 const existingIds = new Set({{ problems|map(attribute='id')|list|tojson }});
 
-function slugify(name) {
-  return name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+function randomHex(bytes) {
+  const arr = new Uint8Array(bytes);
+  crypto.getRandomValues(arr);
+  return [...arr].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
 document.getElementById("generate-id-btn").addEventListener("click", () => {
-  const subject = document.getElementById("subject-input").value;
-  const topic = document.getElementById("topic-input").value;
-  const base = [slugify(subject), slugify(topic)].filter(Boolean).join("-") || "problem";
-
-  let candidate = base;
-  let n = 2;
-  while (existingIds.has(candidate)) {
-    candidate = `${base}-${n}`;
-    n += 1;
-  }
+  let candidate;
+  do {
+    candidate = randomHex(4);
+  } while (existingIds.has(candidate));
   document.getElementById("id-input").value = candidate;
 });
 
