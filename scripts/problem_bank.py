@@ -9,6 +9,7 @@ import secrets
 import shutil
 import subprocess
 import sys
+import tempfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -165,6 +166,153 @@ def add_problem(
             shutil.copy(path, dest / "solutions" / f"{slugify(method)}.pdf")
 
     problems.append(entry)
+    save_problems(problems)
+    return entry
+
+
+def _r2_put_from_file(remote_key, src_path):
+    wrangler("r2", "object", "put", f"{R2_BUCKET}/{remote_key}", f"--file={src_path}", "--remote")
+
+
+def _r2_get_to_file(remote_key, dest_path):
+    wrangler("r2", "object", "get", f"{R2_BUCKET}/{remote_key}", f"--file={dest_path}", "--remote")
+
+
+def _r2_delete_best_effort(remote_key):
+    try:
+        wrangler("r2", "object", "delete", f"{R2_BUCKET}/{remote_key}", "--remote")
+    except ProblemBankError:
+        pass
+
+
+def _kv_delete_best_effort(problem_id):
+    try:
+        _kv_delete(problem_id)
+    except ProblemBankError:
+        pass
+
+
+def _remove_solution_file(id, dest, pdf_rel, was_protected):
+    if was_protected:
+        _r2_delete_best_effort(f"{id}/{pdf_rel}")
+    else:
+        (dest / pdf_rel).unlink(missing_ok=True)
+
+
+def update_problem(
+    *,
+    id,
+    subject,
+    topic,
+    difficulty,
+    type,
+    solutions,
+    statement_path=None,
+    tags=None,
+    source="",
+    protected=False,
+):
+    """Edits an existing problem's metadata and files in place. `id` cannot
+    be changed (renaming would cascade into R2 keys, KV pools, and any
+    links already handed out). `solutions` is a list of dicts:
+    {"method": str, "file_path": Path|None, "keep_pdf": str|None} -
+    keep_pdf is the original entry's relative pdf path when this row is an
+    existing solution being kept (renamed and/or replaced), or None for a
+    brand-new solution (which then requires file_path). Any of the
+    problem's original solutions not referenced by a keep_pdf here are
+    deleted. Toggling `protected` moves solution files between the public
+    docs/ tree and the private R2 bucket as needed; going from protected
+    to public also clears any leftover one-time-key pool (best-effort,
+    since an already-missing pool isn't an error)."""
+    problems = load_problems()
+    schema = load_schema()
+
+    idx = next((i for i, p in enumerate(problems) if p["id"] == id), None)
+    if idx is None:
+        raise ProblemBankError(f"no problem with id '{id}'")
+    old_entry = problems[idx]
+    old_protected = bool(old_entry.get("protected"))
+    new_protected = bool(protected)
+    dest = PROBLEMS_DIR / id
+    (dest / "solutions").mkdir(parents=True, exist_ok=True)
+
+    if statement_path:
+        statement_path = Path(statement_path).expanduser()
+        if not statement_path.exists():
+            raise ProblemBankError(f"statement PDF not found: {statement_path}")
+        shutil.copy(statement_path, dest / "statement.pdf")
+
+    old_pdfs = {s["pdf"] for s in old_entry.get("solutions", [])}
+    kept_pdfs = set()
+    new_solutions_meta = []
+
+    for item in solutions:
+        method = item["method"].strip()
+        if not method:
+            continue
+        target_pdf = f"solutions/{slugify(method)}.pdf"
+        keep_pdf = item.get("keep_pdf")
+        file_path = item.get("file_path")
+        if keep_pdf:
+            kept_pdfs.add(keep_pdf)
+
+        if file_path:
+            file_path = Path(file_path).expanduser()
+            if not file_path.exists():
+                raise ProblemBankError(f"solution PDF not found: {file_path}")
+            if new_protected:
+                _r2_put_from_file(f"{id}/{target_pdf}", file_path.resolve())
+            else:
+                shutil.copy(file_path, dest / target_pdf)
+            if keep_pdf and not (keep_pdf == target_pdf and old_protected == new_protected):
+                _remove_solution_file(id, dest, keep_pdf, old_protected)
+        elif keep_pdf:
+            if old_protected == new_protected:
+                if keep_pdf != target_pdf:
+                    if new_protected:
+                        with tempfile.TemporaryDirectory() as tmp:
+                            tmp_file = Path(tmp) / "sol.pdf"
+                            _r2_get_to_file(f"{id}/{keep_pdf}", tmp_file)
+                            _r2_put_from_file(f"{id}/{target_pdf}", tmp_file)
+                        _r2_delete_best_effort(f"{id}/{keep_pdf}")
+                    else:
+                        (dest / keep_pdf).rename(dest / target_pdf)
+            else:
+                if new_protected:
+                    _r2_put_from_file(f"{id}/{target_pdf}", (dest / keep_pdf).resolve())
+                    (dest / keep_pdf).unlink(missing_ok=True)
+                else:
+                    _r2_get_to_file(f"{id}/{keep_pdf}", dest / target_pdf)
+                    _r2_delete_best_effort(f"{id}/{keep_pdf}")
+        else:
+            raise ProblemBankError(f"solution '{method}' needs a PDF file")
+
+        new_solutions_meta.append({"method": method, "pdf": target_pdf})
+
+    for pdf in old_pdfs - kept_pdfs:
+        _remove_solution_file(id, dest, pdf, old_protected)
+
+    if old_protected and not new_protected:
+        _kv_delete_best_effort(id)
+
+    entry = {
+        "id": id,
+        "subject": subject,
+        "topic": topic,
+        "tags": tags or [],
+        "difficulty": difficulty,
+        "type": type,
+        "statement_pdf": "statement.pdf",
+        "solutions": new_solutions_meta,
+        "source": source or "",
+        "protected": new_protected,
+    }
+    other_ids = {p["id"] for p in problems if p["id"] != id}
+    errors = validate_entry(entry, schema, other_ids)
+    if errors:
+        raise ProblemBankError("Entry fails schema validation:\n" + "\n".join(f"- {e}" for e in errors))
+
+    problems[idx] = entry
     save_problems(problems)
     return entry
 

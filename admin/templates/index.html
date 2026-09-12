@@ -220,7 +220,10 @@
             </form>
             {% endif %}
           </td>
-          <td>
+          <td style="display:flex; gap:6px; align-items:center;">
+            <a href="{{ url_for('edit_form', problem_id=p.id) }}">
+              <button type="button" class="secondary">Edit</button>
+            </a>
             <form method="post" action="{{ url_for('remove', problem_id=p.id) }}"
                   onsubmit="return confirm('Remove {{ p.id }}? This cannot be undone.');">
               <button type="submit" class="danger">Remove</button>

@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Edit {{ problem.id }} - Physics Problem Bank Admin</title>
+<style>
+  :root { --bg: #f7f7f5; --panel: #fff; --border: #e0ded8; --text: #262624; --text-dim: #6b6a66; --accent: #b45309; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; background: var(--bg); color: var(--text); }
+  header { padding: 20px; max-width: 900px; margin: 0 auto; }
+  header h1 { margin: 0 0 4px; font-size: 1.4rem; }
+  header p { margin: 0; color: var(--text-dim); }
+  header a { color: var(--accent); text-decoration: none; font-size: 0.85rem; }
+  main { max-width: 900px; margin: 0 auto; padding: 0 20px 60px; }
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-bottom: 24px; }
+  .panel h2 { margin-top: 0; font-size: 1.1rem; }
+  label { display: block; font-size: 0.85rem; color: var(--text-dim); margin: 10px 0 4px; }
+  input[type=text], input[type=file], select, textarea {
+    width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.9rem;
+  }
+  input[readonly] { background: #f3f2ee; color: var(--text-dim); }
+  .row { display: flex; gap: 12px; flex-wrap: wrap; }
+  .row > div { flex: 1 1 200px; }
+  .solution-row { display: flex; gap: 8px; margin-bottom: 8px; align-items: center; }
+  .solution-row input[type=text] { flex: 1 1 150px; }
+  .solution-row input[type=file] { flex: 2 1 200px; }
+  .solution-row .keep-note { flex: 0 0 auto; font-size: 0.75rem; color: var(--text-dim); white-space: nowrap; }
+  .remove-row-btn { background: none; border: none; color: #b91c1c; cursor: pointer; font-size: 1.1rem; }
+  button.primary { background: var(--accent); color: #fff; border: none; border-radius: 6px; padding: 10px 18px; font-size: 0.95rem; cursor: pointer; margin-top: 14px; }
+  button.secondary { background: var(--panel); border: 1px solid var(--border); border-radius: 6px; padding: 8px 14px; font-size: 0.85rem; cursor: pointer; }
+  .flash { padding: 10px 14px; border-radius: 8px; margin-bottom: 10px; font-size: 0.9rem; white-space: pre-wrap; }
+  .flash.success { background: #ecfdf3; color: #067647; border: 1px solid #abefc6; }
+  .flash.error { background: #fef3f2; color: #b91c1c; border: 1px solid #fda29b; }
+  #add-solution-btn { margin-bottom: 12px; }
+  fieldset { border: 1px solid var(--border); border-radius: 8px; margin-top: 14px; padding: 10px 14px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Edit "{{ problem.id }}"</h1>
+  <p><a href="{{ url_for('index') }}">&larr; back to admin</a></p>
+</header>
+<main>
+  {% for category, message in get_flashed_messages(with_categories=true) %}
+    <div class="flash {{ category }}">{{ message }}</div>
+  {% endfor %}
+
+  <div class="panel">
+    <form method="post" action="{{ url_for('edit', problem_id=problem.id) }}" enctype="multipart/form-data">
+      <div class="row">
+        <div>
+          <label>Id (cannot be changed)</label>
+          <input type="text" value="{{ problem.id }}" readonly />
+        </div>
+        <div>
+          <label>Subject</label>
+          <input type="text" name="subject" required list="subject-list" value="{{ problem.subject }}" />
+          <datalist id="subject-list">
+            {% for s in subjects %}<option value="{{ s }}">{% endfor %}
+          </datalist>
+        </div>
+        <div>
+          <label>Topic</label>
+          <input type="text" name="topic" required value="{{ problem.topic }}" />
+        </div>
+      </div>
+
+      <div class="row">
+        <div>
+          <label>Difficulty</label>
+          <select name="difficulty" required>
+            {% for d in difficulties %}<option value="{{ d }}" {{ "selected" if d == problem.difficulty }}>{{ d }}</option>{% endfor %}
+          </select>
+        </div>
+        <div>
+          <label>Type</label>
+          <select name="type" required>
+            {% for t in types %}<option value="{{ t }}" {{ "selected" if t == problem.type }}>{{ t }}</option>{% endfor %}
+          </select>
+        </div>
+        <div>
+          <label>Tags (comma separated)</label>
+          <input type="text" id="tags-input" name="tags" value="{{ problem.tags|join(', ') }}" />
+          {% if all_tags %}
+          <div id="tag-suggestions" style="display:flex; flex-wrap:wrap; gap:4px; margin-top:6px;">
+            {% for t in all_tags %}
+            <button type="button" class="tag-chip" data-tag="{{ t }}"
+                    style="font-size:0.75rem; padding:2px 8px; border-radius:999px; border:1px solid var(--border); background:var(--bg); color:var(--text-dim); cursor:pointer;">{{ t }}</button>
+            {% endfor %}
+          </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <label>Source</label>
+      <input type="text" name="source" value="{{ problem.source }}" placeholder="Original / adapted from ..." />
+
+      <label>Statement PDF</label>
+      <input type="file" name="statement_file" accept="application/pdf" />
+      <p style="color:var(--text-dim); font-size:0.8rem; margin:4px 0 0;">Leave blank to keep the current statement.pdf.</p>
+
+      <label style="margin-top:16px;">Solutions</label>
+      <div id="solutions-container">
+        {% for s in problem.solutions %}
+        <div class="solution-row">
+          <input type="hidden" name="solution_keep_pdf" value="{{ s.pdf }}" />
+          <input type="text" name="solution_method" value="{{ s.method }}" placeholder="Method" />
+          <input type="file" name="solution_file" accept="application/pdf" />
+          <span class="keep-note">blank = keep current PDF</span>
+          <button type="button" class="remove-row-btn" title="Remove">&times;</button>
+        </div>
+        {% endfor %}
+      </div>
+      <button type="button" id="add-solution-btn" class="secondary">+ Add solution</button>
+
+      <fieldset>
+        <label style="margin-top:0;">
+          <input type="checkbox" name="protected" style="width:auto;display:inline;" {{ "checked" if problem.protected }} />
+          Gate solutions behind one-time keys (statement stays public)
+        </label>
+        <p style="color:var(--text-dim); font-size:0.8rem; margin:6px 0 0;">
+          Toggling this moves existing solution files between the public site and the
+          private storage bucket automatically when you save.
+        </p>
+      </fieldset>
+
+      <div>
+        <button type="submit" class="primary">Save changes</button>
+      </div>
+    </form>
+  </div>
+</main>
+
+<script>
+const container = document.getElementById("solutions-container");
+
+function wireRemove(row) {
+  row.querySelector(".remove-row-btn").addEventListener("click", () => row.remove());
+}
+container.querySelectorAll(".solution-row").forEach(wireRemove);
+
+function addSolutionRow() {
+  const row = document.createElement("div");
+  row.className = "solution-row";
+  row.innerHTML = `
+    <input type="text" name="solution_method" placeholder="Method (e.g. Energy methods)" />
+    <input type="file" name="solution_file" accept="application/pdf" />
+    <button type="button" class="remove-row-btn" title="Remove">&times;</button>
+  `;
+  wireRemove(row);
+  container.appendChild(row);
+}
+
+document.getElementById("add-solution-btn").addEventListener("click", addSolutionRow);
+
+const tagsInput = document.getElementById("tags-input");
+document.querySelectorAll("#tag-suggestions .tag-chip").forEach((chip) => {
+  chip.addEventListener("click", () => {
+    const current = tagsInput.value.split(",").map((t) => t.trim()).filter(Boolean);
+    const tag = chip.dataset.tag;
+    if (!current.includes(tag)) current.push(tag);
+    tagsInput.value = current.join(", ");
+  });
+});
+</script>
+</body>
+</html>

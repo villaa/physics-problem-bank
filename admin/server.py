@@ -114,6 +114,82 @@ def add():
     return redirect(url_for("index"))
 
 
+@app.route("/edit/<problem_id>")
+def edit_form(problem_id):
+    problems = bank.load_problems()
+    match = next((p for p in problems if p["id"] == problem_id), None)
+    if not match:
+        flash(f"no problem with id '{problem_id}'", "error")
+        return redirect(url_for("index"))
+    subjects = sorted({p["subject"] for p in problems})
+    all_tags = sorted({t for p in problems for t in p.get("tags", [])})
+    return render_template(
+        "edit.html",
+        problem=match,
+        subjects=subjects,
+        difficulties=DIFFICULTIES,
+        types=TYPES,
+        all_tags=all_tags,
+    )
+
+
+@app.route("/edit/<problem_id>", methods=["POST"])
+def edit(problem_id):
+    form = request.form
+    methods = form.getlist("solution_method")
+    keep_pdfs = form.getlist("solution_keep_pdf")
+    files = request.files.getlist("solution_file")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+
+        statement_file = request.files.get("statement_file")
+        statement_path = None
+        if statement_file and statement_file.filename:
+            statement_path = tmp_path / "statement.pdf"
+            statement_file.save(statement_path)
+
+        solutions = []
+        for i, (method, keep_pdf, f) in enumerate(zip(methods, keep_pdfs, files)):
+            if not method.strip():
+                continue
+            file_path = None
+            if f and f.filename:
+                file_path = tmp_path / f"solution-{i}.pdf"
+                f.save(file_path)
+            solutions.append({
+                "method": method.strip(),
+                "file_path": file_path,
+                "keep_pdf": keep_pdf or None,
+            })
+
+        protected = form.get("protected") == "on"
+        tags = [t.strip() for t in form.get("tags", "").split(",") if t.strip()]
+
+        try:
+            bank.update_problem(
+                id=problem_id,
+                subject=form["subject"].strip(),
+                topic=form["topic"].strip(),
+                difficulty=form["difficulty"],
+                type=form["type"],
+                statement_path=statement_path,
+                solutions=solutions,
+                tags=tags,
+                source=form.get("source", "").strip(),
+                protected=protected,
+            )
+        except bank.ProblemBankError as e:
+            flash(str(e), "error")
+            return redirect(url_for("edit_form", problem_id=problem_id))
+        except KeyError as e:
+            flash(f"Missing field: {e}", "error")
+            return redirect(url_for("edit_form", problem_id=problem_id))
+
+    flash(f"Updated '{problem_id}'. Click 'Publish to GitHub' below to make it live.", "success")
+    return redirect(url_for("index"))
+
+
 @app.route("/remove/<problem_id>", methods=["POST"])
 def remove(problem_id):
     try:
