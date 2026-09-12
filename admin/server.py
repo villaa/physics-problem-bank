@@ -158,7 +158,7 @@ def publish():
 @app.route("/references/add", methods=["POST"])
 def add_reference():
     try:
-        bank.add_reference(request.form.get("text", ""))
+        bank.add_reference(request.form.get("label", ""), request.form.get("bibtex", ""))
         flash("Reference added.", "success")
     except bank.ProblemBankError as e:
         flash(str(e), "error")
@@ -168,7 +168,7 @@ def add_reference():
 @app.route("/references/remove", methods=["POST"])
 def remove_reference():
     try:
-        bank.remove_reference(request.form.get("text", ""))
+        bank.remove_reference(request.form.get("label", ""))
         flash("Reference removed.", "success")
     except bank.ProblemBankError as e:
         flash(str(e), "error")

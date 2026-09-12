@@ -227,37 +227,47 @@ def list_problems(subject=None, protected_only=False):
     ]
 
 
+def _normalize_reference(r):
+    """Accepts either the old plain-string format or {label, bibtex}."""
+    if isinstance(r, str):
+        return {"label": r, "bibtex": ""}
+    return {"label": r.get("label", ""), "bibtex": r.get("bibtex", "")}
+
+
 def load_references():
     """Reusable base citations (e.g. textbook editions), independent of any
     one problem's section/page - kept separate so they don't accumulate
     duplicates the way full 'source' strings would (page numbers differ per
-    problem)."""
+    problem). Each entry is {label, bibtex} - bibtex may be empty."""
     if not REFERENCES_FILE.exists():
         return []
-    return json.loads(REFERENCES_FILE.read_text())
+    raw = json.loads(REFERENCES_FILE.read_text())
+    return [_normalize_reference(r) for r in raw]
 
 
 def save_references(refs):
     REFERENCES_FILE.parent.mkdir(parents=True, exist_ok=True)
-    REFERENCES_FILE.write_text(json.dumps(sorted(refs, key=str.lower), indent=2) + "\n")
+    refs = sorted(refs, key=lambda r: r["label"].lower())
+    REFERENCES_FILE.write_text(json.dumps(refs, indent=2) + "\n")
 
 
-def add_reference(text):
-    text = text.strip()
-    if not text:
-        raise ProblemBankError("reference text cannot be empty")
+def add_reference(label, bibtex=""):
+    label = label.strip()
+    bibtex = (bibtex or "").strip()
+    if not label:
+        raise ProblemBankError("reference label cannot be empty")
     refs = load_references()
-    if text in refs:
-        raise ProblemBankError(f"reference already exists: {text}")
-    refs.append(text)
+    if any(r["label"] == label for r in refs):
+        raise ProblemBankError(f"reference already exists: {label}")
+    refs.append({"label": label, "bibtex": bibtex})
     save_references(refs)
     return refs
 
 
-def remove_reference(text):
+def remove_reference(label):
     refs = load_references()
-    if text not in refs:
-        raise ProblemBankError(f"reference not found: {text}")
-    refs.remove(text)
+    if not any(r["label"] == label for r in refs):
+        raise ProblemBankError(f"reference not found: {label}")
+    refs = [r for r in refs if r["label"] != label]
     save_references(refs)
     return refs
