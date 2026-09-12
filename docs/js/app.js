@@ -84,7 +84,7 @@ function render() {
 
     const lock = document.createElement("span");
     lock.className = "lock-icon";
-    lock.textContent = p.protected ? "🔒 key required" : "";
+    lock.textContent = p.protected ? "🔒 solutions locked" : "";
     footer.appendChild(lock);
 
     const label = document.createElement("label");
@@ -130,75 +130,10 @@ function publicPdfUrl(problem, relPath) {
 
 function openDetail(problem) {
   overlay.hidden = false;
-  if (problem.protected) {
-    renderLockedDetail(problem);
-  } else {
-    const statementUrl = publicPdfUrl(problem, problem.statement_pdf);
-    const solutions = (problem.solutions || []).map((s) => ({
-      method: s.method,
-      pdf: publicPdfUrl(problem, s.pdf),
-    }));
-    renderUnlockedDetail(problem, statementUrl, solutions);
-  }
-}
+  // The statement is always public, protected or not - only solutions
+  // ever require a key.
+  const statementUrl = publicPdfUrl(problem, problem.statement_pdf);
 
-function renderLockedDetail(problem) {
-  modal.innerHTML = `
-    <div class="modal-header">
-      <div>
-        <h2>${escapeHtml(problem.topic)}</h2>
-        <div style="color:var(--text-dim)">${escapeHtml(problem.subject)} · ${escapeHtml(problem.difficulty)}</div>
-      </div>
-      <button class="modal-close" id="close-btn">&times;</button>
-    </div>
-    <p>🔒 This problem requires an access key from your instructor.</p>
-    <div class="unlock-box">
-      <input type="text" id="key-input" placeholder="Enter access key" />
-      <button id="unlock-btn">Unlock</button>
-    </div>
-    <div id="unlock-error" class="error-text"></div>
-  `;
-  modal.querySelector("#close-btn").addEventListener("click", closeDetail);
-  modal.querySelector("#unlock-btn").addEventListener("click", () =>
-    unlockProblem(problem)
-  );
-}
-
-async function unlockProblem(problem) {
-  const key = modal.querySelector("#key-input").value.trim();
-  const errorEl = modal.querySelector("#unlock-error");
-  errorEl.textContent = "";
-  if (!key) {
-    errorEl.textContent = "Enter a key first.";
-    return;
-  }
-  try {
-    const statementUrl = `${CONFIG.WORKER_URL}/problem/${encodeURIComponent(
-      problem.id
-    )}/statement.pdf?key=${encodeURIComponent(key)}`;
-    const res = await fetch(statementUrl);
-    if (!res.ok) {
-      errorEl.textContent = res.status === 403 ? "Incorrect key." : "Could not load problem.";
-      return;
-    }
-    const blob = await res.blob();
-    const blobUrl = URL.createObjectURL(blob);
-
-    const solutions = (problem.solutions || []).map((s) => ({
-      method: s.method,
-      // solution files fetched lazily per-tab, same key reused
-      fetchUrl: `${CONFIG.WORKER_URL}/problem/${encodeURIComponent(
-        problem.id
-      )}/${encodeURIComponent(s.pdf)}?key=${encodeURIComponent(key)}`,
-    }));
-
-    renderUnlockedDetail(problem, blobUrl, solutions, true);
-  } catch (err) {
-    errorEl.textContent = "Network error reaching the key server.";
-  }
-}
-
-function renderUnlockedDetail(problem, statementSrc, solutions, isProtectedBlob = false) {
   modal.innerHTML = `
     <div class="modal-header">
       <div>
@@ -208,7 +143,8 @@ function renderUnlockedDetail(problem, statementSrc, solutions, isProtectedBlob 
       <button class="modal-close" id="close-btn">&times;</button>
     </div>
     <div class="tabs" id="tabs"></div>
-    <iframe class="pdf-frame" id="pdf-frame" src="${statementSrc}"></iframe>
+    <iframe class="pdf-frame" id="pdf-frame" src="${statementUrl}"></iframe>
+    <div id="lock-area"></div>
   `;
   modal.querySelector("#close-btn").addEventListener("click", closeDetail);
 
@@ -219,34 +155,99 @@ function renderUnlockedDetail(problem, statementSrc, solutions, isProtectedBlob 
   statementBtn.className = "tab-btn active";
   statementBtn.textContent = "Problem statement";
   statementBtn.addEventListener("click", () => {
-    setActiveTab(statementBtn);
-    frame.src = statementSrc;
+    setActiveTab(tabs, statementBtn);
+    frame.src = statementUrl;
   });
   tabs.appendChild(statementBtn);
 
-  for (const sol of solutions || []) {
-    const btn = document.createElement("button");
-    btn.className = "tab-btn";
-    btn.textContent = sol.method;
-    btn.addEventListener("click", async () => {
-      setActiveTab(btn);
-      if (isProtectedBlob) {
-        const res = await fetch(sol.fetchUrl);
-        if (res.ok) {
-          const blob = await res.blob();
-          frame.src = URL.createObjectURL(blob);
-        }
-      } else {
-        frame.src = sol.pdf;
-      }
-    });
-    tabs.appendChild(btn);
+  if (problem.protected) {
+    renderLockArea(problem, tabs, frame);
+  } else {
+    for (const sol of problem.solutions || []) {
+      addSolutionTab(tabs, frame, sol.method, publicPdfUrl(problem, sol.pdf));
+    }
+  }
+}
+
+function addSolutionTab(tabs, frame, method, src) {
+  const btn = document.createElement("button");
+  btn.className = "tab-btn";
+  btn.textContent = method;
+  btn.addEventListener("click", () => {
+    setActiveTab(tabs, btn);
+    frame.src = src;
+  });
+  tabs.appendChild(btn);
+}
+
+function setActiveTab(tabs, activeBtn) {
+  tabs.querySelectorAll(".tab-btn").forEach((b) => b.classList.remove("active"));
+  activeBtn.classList.add("active");
+}
+
+function renderLockArea(problem, tabs, frame) {
+  const lockArea = modal.querySelector("#lock-area");
+  lockArea.innerHTML = `
+    <p style="margin-top:16px;">🔒 Solutions require a one-time key from your instructor.</p>
+    <div class="unlock-box">
+      <input type="text" id="key-input" placeholder="Enter your one-time key" />
+      <button id="unlock-btn">Unlock solutions</button>
+    </div>
+    <div id="unlock-error" class="error-text"></div>
+  `;
+  lockArea.querySelector("#unlock-btn").addEventListener("click", () =>
+    unlockSolutions(problem, tabs, frame, lockArea)
+  );
+}
+
+async function unlockSolutions(problem, tabs, frame, lockArea) {
+  const key = lockArea.querySelector("#key-input").value.trim();
+  const errorEl = lockArea.querySelector("#unlock-error");
+  errorEl.textContent = "";
+  if (!key) {
+    errorEl.textContent = "Enter a key first.";
+    return;
   }
 
-  function setActiveTab(activeBtn) {
-    tabs.querySelectorAll(".tab-btn").forEach((b) => b.classList.remove("active"));
-    activeBtn.classList.add("active");
+  const files = (problem.solutions || []).map((s) => s.pdf);
+  try {
+    const res = await fetch(
+      `${CONFIG.WORKER_URL}/problem/${encodeURIComponent(problem.id)}/redeem`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key, files }),
+      }
+    );
+    if (!res.ok) {
+      errorEl.textContent =
+        res.status === 403
+          ? "Incorrect key, or it's already been used - keys work once."
+          : res.status === 404
+          ? "No keys are available for this problem yet."
+          : "Could not reach the key server.";
+      return;
+    }
+    const data = await res.json();
+
+    lockArea.innerHTML =
+      '<p style="color:var(--text-dim); margin-top:16px;">Solutions unlocked for this session.</p>';
+
+    for (const sol of problem.solutions || []) {
+      const base64 = data.files && data.files[sol.pdf];
+      if (!base64) continue;
+      addSolutionTab(tabs, frame, sol.method, base64ToBlobUrl(base64));
+    }
+  } catch (err) {
+    errorEl.textContent = "Network error reaching the key server.";
   }
+}
+
+function base64ToBlobUrl(base64) {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
 }
 
 function closeDetail() {
@@ -272,26 +273,30 @@ async function buildWorksheet() {
   const selected = state.problems.filter((p) => state.worksheet.has(p.id));
   if (selected.length === 0) return;
 
-  const unprotectedSelected = selected.filter((p) => !p.protected);
-  const skippedProtected = selected.length - unprotectedSelected.length;
+  // Statements are always public, so every selected problem contributes
+  // one - only a protected problem's solutions need a per-student key,
+  // so those are left out of the shared answer-key packet.
+  const protectedSelected = selected.filter((p) => p.protected);
 
   const statementDoc = await PDFLib.PDFDocument.create();
   const answerDoc = await PDFLib.PDFDocument.create();
 
-  for (const p of unprotectedSelected) {
+  for (const p of selected) {
     await appendPdf(statementDoc, publicPdfUrl(p, p.statement_pdf));
-    for (const sol of p.solutions || []) {
-      await appendPdf(answerDoc, publicPdfUrl(p, sol.pdf));
+    if (!p.protected) {
+      for (const sol of p.solutions || []) {
+        await appendPdf(answerDoc, publicPdfUrl(p, sol.pdf));
+      }
     }
   }
 
   await downloadPdf(statementDoc, "worksheet-problems.pdf");
   await downloadPdf(answerDoc, "worksheet-answer-key.pdf");
 
-  if (skippedProtected > 0) {
+  if (protectedSelected.length > 0) {
     alert(
-      `${skippedProtected} protected problem(s) were skipped from the worksheet. ` +
-        `Unlock them individually and add their PDFs by hand.`
+      `${protectedSelected.length} problem(s) have key-protected solutions - ` +
+        `their statements are included above, but their answer keys need to be unlocked individually.`
     );
   }
 }

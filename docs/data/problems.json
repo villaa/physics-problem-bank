@@ -23,5 +23,26 @@
     ],
     "source": "Sample placeholder - replace with real content",
     "protected": false
+  },
+  {
+    "id": "browser-test-001",
+    "subject": "Mechanics",
+    "topic": "Browser Test Problem",
+    "tags": [],
+    "difficulty": "intro",
+    "type": "problem",
+    "statement_pdf": "statement.pdf",
+    "solutions": [
+      {
+        "method": "Energy",
+        "pdf": "solutions/energy.pdf"
+      },
+      {
+        "method": "Newton",
+        "pdf": "solutions/newton.pdf"
+      }
+    ],
+    "source": "",
+    "protected": true
   }
 ]
