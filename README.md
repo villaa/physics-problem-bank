@@ -11,9 +11,11 @@ A searchable, web-based repository of physics problems and solutions.
 - **Worksheet builder**: pick several problems and it merges their statement
   PDFs into one printable packet client-side (via pdf-lib), plus a separate
   answer-key packet from the solutions.
-- **Protected problems**: some problems (e.g. an active quiz) can require an
-  access key. That's handled by a small Cloudflare Worker in `worker/` — see
-  `worker/README.md` to deploy it once you have a (free) Cloudflare account.
+- **Protected solutions**: a problem's statement is always public; its
+  solutions can instead require a one-time key (generate a batch, hand one
+  per student — each works exactly once, then it's consumed). Handled by a
+  small Cloudflare Worker in `worker/` — see `worker/README.md` to deploy it
+  once you have a (free) Cloudflare account.
 
 ## Setup
 
@@ -39,22 +41,28 @@ python3 scripts/problems.py add --id mech-projectile-003 \
     --solution "Kinematics:~/Desktop/solution.pdf" \
     --tags projectile,kinematics --source Original
 
-# Protected problem (needs the Cloudflare Worker deployed - see worker/README.md)
+# Protected problem (needs the Cloudflare Worker deployed - see worker/README.md).
+# The statement is still public - only its solutions get gated, by one-time
+# keys you generate afterward (no key needed here).
 python3 scripts/problems.py add --id quiz3-p2 \
     --subject Mechanics --topic "Work and Energy" \
     --difficulty intermediate --type problem \
     --statement ./statement.pdf --solution "Energy:./sol.pdf" \
-    --protected --key "fall2026-quiz3"
+    --protected
+
+python3 scripts/problems.py generate-keys quiz3-p2 --count 30
+python3 scripts/problems.py key-count quiz3-p2
 
 python3 scripts/problems.py remove mech-projectile-003
 python3 scripts/problems.py list --subject Mechanics
 python3 scripts/problems.py validate
 ```
 
-`add` copies the PDF(s) into place (or uploads them to the private R2
-bucket, for protected problems) and appends the metadata entry;
-`remove` deletes both the metadata and the files/R2-KV data together.
-After `add`/`remove`, commit and push `docs/` — GitHub Pages redeploys
+`add` copies the statement PDF into place always, and copies solution PDFs
+too unless the problem is protected (those upload to the private R2 bucket
+instead) - then appends the metadata entry. `remove` deletes the metadata,
+the local files, and any R2/KV data together. After `add`/`remove`/
+`generate-keys`, commit and push `docs/` — GitHub Pages redeploys
 automatically; protected problems' Cloudflare data is already live as
 soon as the command finishes.
 
@@ -73,4 +81,7 @@ cd docs
 python3 -m http.server 8000
 ```
 
-Then open `http://localhost:8000`.
+Then open `http://localhost:8000`. Note: the Cloudflare Worker only allows
+requests from the real GitHub Pages origin (CORS), so unlocking a
+protected problem's solutions won't work from localhost — everything else
+(browsing, search, worksheet builder, public problems) works fine locally.

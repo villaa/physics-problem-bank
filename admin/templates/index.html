@@ -26,9 +26,9 @@
   button.primary { background: var(--accent); color: #fff; border: none; border-radius: 6px; padding: 10px 18px; font-size: 0.95rem; cursor: pointer; margin-top: 14px; }
   button.secondary { background: var(--panel); border: 1px solid var(--border); border-radius: 6px; padding: 8px 14px; font-size: 0.85rem; cursor: pointer; }
   button.danger { background: none; border: 1px solid #b91c1c; color: #b91c1c; border-radius: 6px; padding: 6px 12px; font-size: 0.8rem; cursor: pointer; }
-  .flash { padding: 10px 14px; border-radius: 8px; margin-bottom: 10px; font-size: 0.9rem; }
+  .flash { padding: 10px 14px; border-radius: 8px; margin-bottom: 10px; font-size: 0.9rem; white-space: pre-wrap; }
   .flash.success { background: #ecfdf3; color: #067647; border: 1px solid #abefc6; }
-  .flash.error { background: #fef3f2; color: #b91c1c; border: 1px solid #fda29b; white-space: pre-wrap; }
+  .flash.error { background: #fef3f2; color: #b91c1c; border: 1px solid #fda29b; }
   table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
   th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--border); }
   .lock { color: var(--accent); }
@@ -121,10 +121,12 @@
       <fieldset id="protected-fields">
         <label style="margin-top:0;">
           <input type="checkbox" id="protected-toggle" name="protected" style="width:auto;display:inline;" />
-          Protect this problem with an access key
+          Gate solutions behind one-time keys (statement stays public)
         </label>
-        <label>Access key (plaintext - shown once, share with students)</label>
-        <input type="text" id="key-input" name="key" />
+        <p style="color:var(--text-dim); font-size:0.8rem; margin:6px 0 0;">
+          No key needed here - generate a batch of one-time keys for this problem
+          afterward, from the row in the table below.
+        </p>
       </fieldset>
 
       <div>
@@ -186,7 +188,7 @@
     </div>
     <table>
       <thead>
-        <tr><th>Id</th><th>Subject</th><th>Topic</th><th>Difficulty</th><th></th><th></th></tr>
+        <tr><th>Id</th><th>Subject</th><th>Topic</th><th>Difficulty</th><th>Keys</th><th></th></tr>
       </thead>
       <tbody>
         {% for p in problems %}
@@ -195,7 +197,16 @@
           <td>{{ p.subject }}</td>
           <td>{{ p.topic }}</td>
           <td>{{ p.difficulty }}</td>
-          <td>{% if p.protected %}<span class="lock">locked</span>{% endif %}</td>
+          <td>
+            {% if p.protected %}
+            <form method="post" action="{{ url_for('generate_keys', problem_id=p.id) }}"
+                  style="display:flex; gap:4px; align-items:center;">
+              <span style="font-size:0.8rem; color:var(--text-dim);">{{ key_counts.get(p.id, 0) }} left</span>
+              <input type="number" name="count" value="10" min="1" max="500" style="width:60px; padding:4px;" />
+              <button type="submit" class="secondary" style="padding:4px 8px; font-size:0.75rem;">Generate</button>
+            </form>
+            {% endif %}
+          </td>
           <td>
             <form method="post" action="{{ url_for('remove', problem_id=p.id) }}"
                   onsubmit="return confirm('Remove {{ p.id }}? This cannot be undone.');">
@@ -258,12 +269,6 @@ function addSolutionRow() {
 
 document.getElementById("add-solution-btn").addEventListener("click", addSolutionRow);
 addSolutionRow();
-
-const protectedToggle = document.getElementById("protected-toggle");
-const keyInput = document.getElementById("key-input");
-protectedToggle.addEventListener("change", () => {
-  keyInput.required = protectedToggle.checked;
-});
 </script>
 </body>
 </html>

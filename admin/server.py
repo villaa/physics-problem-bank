@@ -34,7 +34,7 @@ TYPES = ["problem", "conceptual", "derivation"]
 
 def run_git(*args):
     return subprocess.run(
-        ["git", *args], cwd=ROOT, capture_output=True, text=True,
+        ["git", *args], cwd=ROOT, capture_output=True, encoding="utf-8", errors="replace",
     )
 
 
@@ -44,6 +44,7 @@ def index():
     subjects = sorted({p["subject"] for p in problems})
     status = run_git("status", "--porcelain", "--", "docs")
     unpublished = bool(status.stdout.strip())
+    key_counts = {p["id"]: bank.key_count(p["id"]) for p in problems if p.get("protected")}
     return render_template(
         "index.html",
         problems=problems,
@@ -52,6 +53,7 @@ def index():
         types=TYPES,
         unpublished=unpublished,
         references=bank.load_references(),
+        key_counts=key_counts,
     )
 
 
@@ -94,7 +96,6 @@ def add():
                 tags=tags,
                 source=form.get("source", "").strip(),
                 protected=protected,
-                key=form.get("key", "").strip() or None,
             )
         except bank.ProblemBankError as e:
             flash(str(e), "error")
@@ -105,7 +106,7 @@ def add():
 
     msg = f"Added '{form['id'].strip()}'."
     if protected:
-        msg += f" Access key: {form.get('key', '').strip()} (share with students)."
+        msg += " Its solutions have no keys yet - use 'Generate keys' below."
     msg += " Click 'Publish to GitHub' below to make it live."
     flash(msg, "success")
     return redirect(url_for("index"))
@@ -118,6 +119,29 @@ def remove(problem_id):
         flash(f"Removed '{problem_id}'. Click 'Publish to GitHub' below to make the removal live.", "success")
     except bank.ProblemBankError as e:
         flash(str(e), "error")
+    return redirect(url_for("index"))
+
+
+@app.route("/keys/generate/<problem_id>", methods=["POST"])
+def generate_keys(problem_id):
+    try:
+        count = int(request.form.get("count", "1"))
+    except ValueError:
+        flash("Key count must be a number.", "error")
+        return redirect(url_for("index"))
+
+    try:
+        keys = bank.generate_keys(problem_id, count)
+    except bank.ProblemBankError as e:
+        flash(str(e), "error")
+        return redirect(url_for("index"))
+
+    flash(
+        f"Generated {len(keys)} key(s) for '{problem_id}' - shown once, copy them now:\n"
+        + "\n".join(keys)
+        + f"\n\nTotal unredeemed keys for '{problem_id}': {bank.key_count(problem_id)}",
+        "success",
+    )
     return redirect(url_for("index"))
 
 

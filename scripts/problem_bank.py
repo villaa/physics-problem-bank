@@ -5,6 +5,7 @@ admin/server.py (local web UI) so the two stay in sync automatically.
 import hashlib
 import json
 import re
+import secrets
 import shutil
 import subprocess
 import sys
@@ -73,7 +74,8 @@ def wrangler(*args, confirm=False):
         cmd,
         cwd=WORKER_DIR,
         input="y\n" if confirm else None,
-        text=True,
+        encoding="utf-8",
+        errors="replace",
         capture_output=True,
     )
     if result.returncode != 0:
@@ -99,13 +101,18 @@ def add_problem(
     tags=None,
     source="",
     protected=False,
-    key=None,
 ):
     """solutions: list of (method, Path) tuples. Paths must already exist.
+
+    The statement is always public, even for a 'protected' problem -
+    protection only ever gates the solutions, via a pool of one-time keys
+    (see generate_keys). A freshly-added protected problem starts with an
+    empty key pool; generate_keys adds to it later.
+
     Raises ProblemBankError on any failure; does nothing partial on the
     metadata side (problems.json is only written after all uploads/copies
-    succeed) - though a protected add can still leave some KV/R2 writes in
-    place if a later step fails, since Cloudflare has no multi-write
+    succeed) - though a protected add can still leave a partial R2 upload
+    in place if a later step fails, since Cloudflare has no multi-write
     transactions; re-running 'add' with the same id is safe (it overwrites)."""
     problems = load_problems()
     schema = load_schema()
@@ -140,19 +147,12 @@ def add_problem(
         if not Path(path).exists():
             raise ProblemBankError(f"solution PDF not found: {path}")
 
+    # Statement: always a public file, protected or not.
+    dest = PROBLEMS_DIR / id
+    (dest / "solutions").mkdir(parents=True, exist_ok=True)
+    shutil.copy(statement_path, dest / "statement.pdf")
+
     if protected:
-        if not key:
-            raise ProblemBankError("protected problems require an access key")
-        key_hash = sha256_hex(key)
-        wrangler(
-            "kv", "key", "put", "--binding=PROBLEM_KEYS", id,
-            json.dumps({"keyHash": key_hash}), "--remote",
-        )
-        wrangler(
-            "r2", "object", "put",
-            f"{R2_BUCKET}/{id}/statement.pdf",
-            f"--file={statement_path.resolve()}", "--remote",
-        )
         for method, path in solutions:
             wrangler(
                 "r2", "object", "put",
@@ -160,9 +160,6 @@ def add_problem(
                 f"--file={Path(path).resolve()}", "--remote",
             )
     else:
-        dest = PROBLEMS_DIR / id
-        (dest / "solutions").mkdir(parents=True, exist_ok=True)
-        shutil.copy(statement_path, dest / "statement.pdf")
         for method, path in solutions:
             shutil.copy(path, dest / "solutions" / f"{slugify(method)}.pdf")
 
@@ -178,18 +175,87 @@ def remove_problem(id):
         raise ProblemBankError(f"no problem with id '{id}'")
 
     if match.get("protected"):
-        wrangler("kv", "key", "delete", "--binding=PROBLEM_KEYS", id, "--remote", confirm=True)
-        wrangler("r2", "object", "delete", f"{R2_BUCKET}/{id}/statement.pdf", "--remote")
+        _kv_delete(id)
         for sol in match.get("solutions", []):
             wrangler("r2", "object", "delete", f"{R2_BUCKET}/{id}/{sol['pdf']}", "--remote")
-    else:
-        dest = PROBLEMS_DIR / id
-        if dest.exists():
-            shutil.rmtree(dest)
+
+    dest = PROBLEMS_DIR / id
+    if dest.exists():
+        shutil.rmtree(dest)
 
     problems = [p for p in problems if p["id"] != id]
     save_problems(problems)
     return match
+
+
+def _kv_get_key_pool(problem_id):
+    """Raw KV read that tolerates a missing key (returns an empty pool)
+    instead of raising, since 'no keys generated yet' is a normal state."""
+    npx = shutil.which("npx")
+    if not npx:
+        raise ProblemBankError("'npx' not found on PATH (needed to run wrangler)")
+    result = subprocess.run(
+        [npx, "wrangler", "kv", "key", "get", "--binding=PROBLEM_KEYS", problem_id, "--remote"],
+        cwd=WORKER_DIR,
+        encoding="utf-8",
+        errors="replace",
+        capture_output=True,
+    )
+    if result.returncode != 0 or not result.stdout.strip():
+        return {"keyHashes": []}
+    try:
+        parsed = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        return {"keyHashes": []}
+    return {"keyHashes": list(parsed.get("keyHashes", []))}
+
+
+def _kv_put_key_pool(problem_id, pool):
+    wrangler(
+        "kv", "key", "put", "--binding=PROBLEM_KEYS", problem_id,
+        json.dumps(pool), "--remote",
+    )
+
+
+def _kv_delete(problem_id):
+    wrangler("kv", "key", "delete", "--binding=PROBLEM_KEYS", problem_id, "--remote", confirm=True)
+
+
+def generate_keys(problem_id, count):
+    """Generates `count` new one-time-use hex keys for a protected problem's
+    solutions, adds their hashes to the KV pool, and returns the new
+    PLAINTEXT keys - the only time they're ever visible. Distribute them
+    immediately; they cannot be recovered afterward, only revoked (by
+    removing and re-adding the problem, which clears the whole pool)."""
+    if count < 1:
+        raise ProblemBankError("count must be at least 1")
+
+    problems = load_problems()
+    match = next((p for p in problems if p["id"] == problem_id), None)
+    if not match:
+        raise ProblemBankError(f"no problem with id '{problem_id}'")
+    if not match.get("protected"):
+        raise ProblemBankError(f"'{problem_id}' is not a protected problem")
+
+    pool = _kv_get_key_pool(problem_id)
+    existing_hashes = set(pool["keyHashes"])
+
+    new_keys = []
+    while len(new_keys) < count:
+        candidate = secrets.token_hex(4)
+        h = sha256_hex(candidate)
+        if h in existing_hashes:
+            continue
+        new_keys.append(candidate)
+        existing_hashes.add(h)
+
+    _kv_put_key_pool(problem_id, {"keyHashes": sorted(existing_hashes)})
+    return new_keys
+
+
+def key_count(problem_id):
+    """How many unredeemed keys remain for a protected problem."""
+    return len(_kv_get_key_pool(problem_id)["keyHashes"])
 
 
 def validate_all():
@@ -203,11 +269,12 @@ def validate_all():
         seen.add(entry.get("id"))
         pid = entry.get("id", "<no id>")
 
+        base = PROBLEMS_DIR / pid
+        stmt = base / entry.get("statement_pdf", "statement.pdf")
+        if not stmt.exists():
+            errors.append(f"statement PDF not found: {stmt.relative_to(ROOT)}")
+
         if not entry.get("protected"):
-            base = PROBLEMS_DIR / pid
-            stmt = base / entry.get("statement_pdf", "statement.pdf")
-            if not stmt.exists():
-                errors.append(f"statement PDF not found: {stmt.relative_to(ROOT)}")
             for sol in entry.get("solutions", []):
                 sp = base / sol.get("pdf", "")
                 if not sp.exists():

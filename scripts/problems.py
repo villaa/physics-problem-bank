@@ -10,12 +10,17 @@ Examples:
       --solution "Kinematics:~/Desktop/solution.pdf" \\
       --tags projectile,kinematics --source Original
 
-  # Protected problem (needs a Cloudflare Worker already deployed - see worker/README.md)
+  # Protected problem (needs a Cloudflare Worker already deployed - see
+  # worker/README.md). The statement is still public; only the solutions
+  # are gated, by a pool of one-time keys you generate afterward.
   python3 scripts/problems.py add --id quiz3-p2 \\
       --subject Mechanics --topic "Work and Energy" \\
       --difficulty intermediate --type problem \\
       --statement ./statement.pdf --solution "Energy:./sol.pdf" \\
-      --protected --key "fall2026-quiz3"
+      --protected
+
+  python3 scripts/problems.py generate-keys quiz3-p2 --count 30
+  python3 scripts/problems.py key-count quiz3-p2
 
   python3 scripts/problems.py remove mech-projectile-003
   python3 scripts/problems.py list --subject Mechanics
@@ -23,8 +28,8 @@ Examples:
 
 After add/remove, review docs/data/problems.json and commit + push - the
 public site (GitHub Pages) picks up changes automatically; protected
-problems' KV/R2 data is already live on Cloudflare once 'add'/'remove'
-finishes.
+problems' KV/R2 data is already live on Cloudflare once 'add'/'remove'/
+'generate-keys' finishes.
 
 Prefer a form over flags? Run 'python3 admin/server.py' instead - a local
 web UI for the same operations (see admin/README.md).
@@ -57,15 +62,17 @@ def cmd_add(args):
             tags=[t.strip() for t in args.tags.split(",")] if args.tags else [],
             source=args.source or "",
             protected=args.protected,
-            key=args.key,
         )
     except bank.ProblemBankError as e:
         print(f"error: {e}")
         sys.exit(1)
 
+    print(f"\nAdded '{args.id}'.", end=" ")
     if args.protected:
-        print(f"\nAccess key for '{args.id}': {args.key}  (share with students)")
-    print(f"\nAdded '{args.id}'. git add/commit/push docs/ to publish it.")
+        print("Its solutions have no keys yet - run 'generate-keys' to create some.")
+    else:
+        print()
+    print("git add/commit/push docs/ to publish it.")
 
 
 def cmd_remove(args):
@@ -75,6 +82,27 @@ def cmd_remove(args):
         print(f"error: {e}")
         sys.exit(1)
     print(f"Removed '{args.id}'. git add/commit/push docs/ to publish the removal.")
+
+
+def cmd_generate_keys(args):
+    try:
+        keys = bank.generate_keys(args.id, args.count)
+    except bank.ProblemBankError as e:
+        print(f"error: {e}")
+        sys.exit(1)
+    print(f"Generated {len(keys)} one-time key(s) for '{args.id}':\n")
+    for k in keys:
+        print(f"  {k}")
+    print(f"\nTotal unredeemed keys for '{args.id}': {bank.key_count(args.id)}")
+    print("These are shown once - distribute them now, they can't be recovered later.")
+
+
+def cmd_key_count(args):
+    try:
+        print(bank.key_count(args.id))
+    except bank.ProblemBankError as e:
+        print(f"error: {e}")
+        sys.exit(1)
 
 
 def cmd_validate(args):
@@ -112,13 +140,21 @@ def main():
     p_add.add_argument("--solution", action="append", help="method:path, repeatable")
     p_add.add_argument("--tags", help="comma-separated")
     p_add.add_argument("--source")
-    p_add.add_argument("--protected", action="store_true")
-    p_add.add_argument("--key", help="plaintext access key (required with --protected)")
+    p_add.add_argument("--protected", action="store_true", help="gate solutions behind one-time keys (statement stays public)")
     p_add.set_defaults(func=cmd_add)
 
     p_remove = sub.add_parser("remove", help="remove a problem by id")
     p_remove.add_argument("id")
     p_remove.set_defaults(func=cmd_remove)
+
+    p_genkeys = sub.add_parser("generate-keys", help="generate one-time solution-unlock keys for a protected problem")
+    p_genkeys.add_argument("id")
+    p_genkeys.add_argument("--count", type=int, default=1)
+    p_genkeys.set_defaults(func=cmd_generate_keys)
+
+    p_keycount = sub.add_parser("key-count", help="print how many unredeemed keys remain for a protected problem")
+    p_keycount.add_argument("id")
+    p_keycount.set_defaults(func=cmd_key_count)
 
     p_validate = sub.add_parser("validate", help="validate problems.json against schema.json")
     p_validate.set_defaults(func=cmd_validate)

@@ -31,11 +31,16 @@ binds to `127.0.0.1` (localhost) - nobody else on your network can reach it.
 ## What it does
 
 - **Add a problem**: fill in the metadata, attach a statement PDF and any
-  number of solution PDFs (each with a method name), optionally check
-  "Protect this problem" and set an access key. Submitting runs the exact
-  same code path as `scripts/problems.py add` - PDFs get copied into
-  `docs/problems/<id>/`, or (if protected) hashed/uploaded to Cloudflare
-  KV + R2.
+  number of solution PDFs (each with a method name), optionally check "Gate
+  solutions behind one-time keys". Submitting runs the exact same code path
+  as `scripts/problems.py add`. The statement is always public; a protected
+  problem's solutions upload to Cloudflare R2 instead of `docs/problems/`.
+- **Generate keys**: each protected problem gets a "Generate" control in the
+  existing-problems table - pick a count, submit, and the new one-time keys
+  are shown once in the flash message right after (copy them immediately;
+  they can't be looked up again). One key unlocks *all* of a problem's
+  solutions at once and is consumed the moment it's used. The "N left"
+  count next to the control tracks unredeemed keys.
 - **Reusable references**: save a citation once (e.g. a textbook edition),
   optionally with its BibTeX entry, and it appears in the Reference dropdown
   when adding future problems. Section and Page are separate optional fields

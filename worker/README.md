@@ -1,9 +1,11 @@
-# Cloudflare Worker — protected problem access
+# Cloudflare Worker — one-time key access for solutions
 
-This Worker guards protected problems: a viewer must supply the correct
-access key before a solution or statement PDF is ever sent to the browser.
-Public (non-protected) problems don't touch this at all — they're served
-directly by GitHub Pages from `docs/problems/`.
+This Worker guards protected problems' **solutions** with a pool of
+one-time-use keys — generate a batch, hand one to each student, and each key
+works exactly once. A problem's **statement is always public** (served
+directly by GitHub Pages from `docs/problems/`), protected or not; only its
+solution PDFs ever require a key, and only if you mark the problem
+`protected: true`.
 
 ## One-time setup (once you have a Cloudflare account)
 
@@ -26,33 +28,60 @@ npx wrangler deploy
 then run `npx wrangler deploy` again. Paste the final URL into
 `docs/js/config.js` as `WORKER_URL`.
 
-## Adding or removing a protected problem
+## Adding a protected problem and generating keys
 
 Use `scripts/problems.py` from the repo root (not a Worker-specific script —
 it handles public and protected problems together and keeps
 `docs/data/problems.json` in sync):
 
 ```bash
+# The statement is public even though the problem is "protected" - only
+# its solutions get gated. No key is needed at add time.
 python3 scripts/problems.py add --id quiz3-p2 \
     --subject Mechanics --topic "Work and Energy" \
     --difficulty intermediate --type problem \
     --statement ./statement.pdf --solution "Energy:./sol.pdf" \
-    --protected --key "fall2026-quiz3"
+    --protected
+
+# Generate a batch of one-time keys (e.g. one per student) whenever you're
+# ready to hand them out. Each run adds to the pool; existing keys are
+# unaffected.
+python3 scripts/problems.py generate-keys quiz3-p2 --count 30
+
+# How many keys are still unredeemed:
+python3 scripts/problems.py key-count quiz3-p2
 
 python3 scripts/problems.py remove quiz3-p2
 ```
 
-`add --protected` hashes the key (SHA-256, never stored in plaintext),
-uploads the PDF(s) to the private R2 bucket, adds the KV entry, and appends
-the metadata to `problems.json`. `remove` cleans up KV, R2, and the metadata
-entry together.
+The same is available from the admin web UI: a "Generate" control per
+protected problem row, and the generated keys are shown once in a flash
+message right after.
+
+**Keys are shown exactly once, at generation time** — only their SHA-256
+hashes are ever stored (in KV), so there's no way to look a key back up
+later. Copy/distribute them immediately. To revoke every outstanding key at
+once, `remove` the problem and `add` it again (this clears the whole pool);
+there's currently no way to revoke a single key without regenerating all of
+them.
 
 ## How it works
 
-- `docs/js/app.js` shows a key-entry box for any problem marked
-  `protected: true` and calls the Worker at
-  `GET /problem/:id/:file?key=...`.
-- The Worker hashes the submitted key and compares it to the stored hash in
-  KV. Only on a match does it stream the actual PDF bytes from R2.
-- Without the correct key, the PDF bytes never leave R2 — inspecting network
-  traffic reveals nothing, unlike a "guess the URL" scheme.
+- Each protected problem has a KV entry (`PROBLEM_KEYS`, keyed by problem
+  id) holding `{"keyHashes": ["<sha256 hex>", ...]}` — a pool of unredeemed
+  keys. `generate-keys` appends new hashes to this pool.
+- When a student enters a key, `docs/js/app.js` calls
+  `POST /problem/:id/redeem` with `{key, files}` (files = every solution PDF
+  path for that problem, from `problems.json`).
+- The Worker hashes the submitted key, and if it's in the pool: removes it
+  (one-time use enforced server-side, not just client-side) *then* returns
+  every requested solution file, base64-encoded, in that single response —
+  so one key unlocks all of a problem's solution methods at once, not just
+  the first one you happen to click.
+- Wrong or already-used key → `403`. Without the correct key, no solution
+  bytes ever leave R2.
+- This relies on Cloudflare KV's read-modify-write, not a real transaction —
+  two students submitting the same key in the same instant could both
+  succeed in a narrow race window. Not a concern at classroom scale (KV
+  operations are far faster than two people typing the same code
+  simultaneously), but worth knowing if this ever needs to scale up.
