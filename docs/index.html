@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Physics Problem Bank</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <header>
+    <h1>Physics Problem Bank</h1>
+    <p>Browse problems by topic, difficulty, and tags. Some problems require an access key.</p>
+  </header>
+
+  <div class="controls">
+    <input type="search" id="search" placeholder="Search title, topic, tags, source..." />
+    <select id="subject-filter"><option value="">All subjects</option></select>
+    <select id="difficulty-filter">
+      <option value="">All difficulties</option>
+      <option value="intro">Intro</option>
+      <option value="intermediate">Intermediate</option>
+      <option value="advanced">Advanced</option>
+    </select>
+  </div>
+
+  <main>
+    <div id="grid" class="grid"></div>
+    <div id="empty" class="empty-state" hidden>No problems match those filters.</div>
+  </main>
+
+  <div class="tray" id="tray" hidden>
+    <span id="tray-count">0 selected</span>
+    <button class="secondary-btn" id="tray-clear">Clear</button>
+    <button class="primary-btn" id="tray-build">Build worksheet PDF</button>
+  </div>
+
+  <div class="overlay" id="overlay" hidden>
+    <div class="modal" id="modal"></div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

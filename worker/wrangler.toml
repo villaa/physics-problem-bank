@@ -1,0 +1,11 @@
+name = "physics-problem-bank-worker"
+main = "src/index.js"
+compatibility_date = "2026-01-01"
+
+[[kv_namespaces]]
+binding = "PROBLEM_KEYS"
+id = "REPLACE_AFTER_WRANGLER_KV_CREATE"
+
+[[r2_buckets]]
+binding = "PROTECTED_PDFS"
+bucket_name = "physics-problem-bank-protected"

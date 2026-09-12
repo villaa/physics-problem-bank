@@ -1,0 +1,17 @@
+[
+  {
+    "id": "sample-001",
+    "subject": "Mechanics",
+    "topic": "Work and Energy",
+    "tags": ["work-energy-theorem", "friction", "incline"],
+    "difficulty": "intermediate",
+    "type": "problem",
+    "statement_pdf": "problems/sample-001/statement.pdf",
+    "solutions": [
+      { "method": "Energy methods", "pdf": "problems/sample-001/solutions/energy-method.pdf" },
+      { "method": "Newton's second law", "pdf": "problems/sample-001/solutions/newton-method.pdf" }
+    ],
+    "source": "Sample placeholder - replace with real content",
+    "protected": false
+  }
+]
