@@ -28,7 +28,9 @@
     "id": "0231bb11",
     "subject": "projectile motion",
     "topic": "2D motion with constant accel.",
-    "tags": [],
+    "tags": [
+      "projectile motion"
+    ],
     "difficulty": "intro",
     "type": "problem",
     "statement_pdf": "statement.pdf",
