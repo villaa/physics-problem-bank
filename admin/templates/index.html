@@ -118,9 +118,16 @@
   <div class="panel">
     <div style="display:flex; justify-content:space-between; align-items:center;">
       <h2>Existing problems ({{ problems|length }})</h2>
-      <form method="post" action="{{ url_for('validate') }}">
-        <button type="submit" class="secondary">Validate all</button>
-      </form>
+      <div style="display:flex; gap:8px; align-items:center;">
+        {% if unpublished %}<span style="font-size:0.8rem; color:var(--accent);">unpublished changes</span>{% endif %}
+        <form method="post" action="{{ url_for('validate') }}">
+          <button type="submit" class="secondary">Validate all</button>
+        </form>
+        <form method="post" action="{{ url_for('publish') }}"
+              onsubmit="return confirm('Commit and push docs/ to GitHub now?');">
+          <button type="submit" class="primary" style="margin-top:0;">Publish to GitHub</button>
+        </form>
+      </div>
     </div>
     <table>
       <thead>

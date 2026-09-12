@@ -11,10 +11,12 @@ scripts/problems.py, so behavior (schema validation, Cloudflare
 upload/delete for protected problems, etc.) is identical either way.
 """
 import secrets
+import subprocess
 import sys
 import tempfile
 import threading
 import webbrowser
+from datetime import datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -30,16 +32,25 @@ DIFFICULTIES = ["intro", "intermediate", "advanced"]
 TYPES = ["problem", "conceptual", "derivation"]
 
 
+def run_git(*args):
+    return subprocess.run(
+        ["git", *args], cwd=ROOT, capture_output=True, text=True,
+    )
+
+
 @app.route("/")
 def index():
     problems = bank.load_problems()
     subjects = sorted({p["subject"] for p in problems})
+    status = run_git("status", "--porcelain", "--", "docs")
+    unpublished = bool(status.stdout.strip())
     return render_template(
         "index.html",
         problems=problems,
         subjects=subjects,
         difficulties=DIFFICULTIES,
         types=TYPES,
+        unpublished=unpublished,
     )
 
 
@@ -94,7 +105,7 @@ def add():
     msg = f"Added '{form['id'].strip()}'."
     if protected:
         msg += f" Access key: {form.get('key', '').strip()} (share with students)."
-    msg += " Remember to git add/commit/push docs/ to publish it."
+    msg += " Click 'Publish to GitHub' below to make it live."
     flash(msg, "success")
     return redirect(url_for("index"))
 
@@ -103,9 +114,43 @@ def add():
 def remove(problem_id):
     try:
         bank.remove_problem(problem_id)
-        flash(f"Removed '{problem_id}'. git add/commit/push docs/ to publish the removal.", "success")
+        flash(f"Removed '{problem_id}'. Click 'Publish to GitHub' below to make the removal live.", "success")
     except bank.ProblemBankError as e:
         flash(str(e), "error")
+    return redirect(url_for("index"))
+
+
+@app.route("/publish", methods=["POST"])
+def publish():
+    status = run_git("status", "--porcelain", "--", "docs")
+    if status.returncode != 0:
+        flash(f"git status failed: {status.stderr}", "error")
+        return redirect(url_for("index"))
+    if not status.stdout.strip():
+        flash("Nothing to publish - docs/ has no changes.", "success")
+        return redirect(url_for("index"))
+
+    add = run_git("add", "docs")
+    if add.returncode != 0:
+        flash(f"git add failed: {add.stderr}", "error")
+        return redirect(url_for("index"))
+
+    message = f"Update problem bank via admin UI ({datetime.now().strftime('%Y-%m-%d %H:%M')})"
+    commit = run_git("commit", "-m", message)
+    if commit.returncode != 0:
+        flash(f"git commit failed: {commit.stderr or commit.stdout}", "error")
+        return redirect(url_for("index"))
+
+    push = run_git("push")
+    if push.returncode != 0:
+        flash(
+            f"Committed locally, but git push failed: {push.stderr}\n"
+            "Push manually once the issue is fixed.",
+            "error",
+        )
+        return redirect(url_for("index"))
+
+    flash("Published to GitHub - the live site will update shortly.", "success")
     return redirect(url_for("index"))
 
 
