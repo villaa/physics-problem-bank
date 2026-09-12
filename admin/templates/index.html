@@ -53,18 +53,21 @@
       <div class="row">
         <div>
           <label>Id (unique, no spaces)</label>
-          <input type="text" name="id" required pattern="[a-zA-Z0-9\-_]+" />
+          <div style="display:flex; gap:6px;">
+            <input type="text" id="id-input" name="id" required pattern="[a-zA-Z0-9\-_]+" />
+            <button type="button" id="generate-id-btn" class="secondary" style="white-space:nowrap;">Generate</button>
+          </div>
         </div>
         <div>
           <label>Subject</label>
-          <input type="text" name="subject" required list="subject-list" />
+          <input type="text" id="subject-input" name="subject" required list="subject-list" />
           <datalist id="subject-list">
             {% for s in subjects %}<option value="{{ s }}">{% endfor %}
           </datalist>
         </div>
         <div>
           <label>Topic</label>
-          <input type="text" name="topic" required />
+          <input type="text" id="topic-input" name="topic" required />
         </div>
       </div>
 
@@ -145,6 +148,26 @@
 </main>
 
 <script>
+const existingIds = new Set({{ problems|map(attribute='id')|list|tojson }});
+
+function slugify(name) {
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+}
+
+document.getElementById("generate-id-btn").addEventListener("click", () => {
+  const subject = document.getElementById("subject-input").value;
+  const topic = document.getElementById("topic-input").value;
+  const base = [slugify(subject), slugify(topic)].filter(Boolean).join("-") || "problem";
+
+  let candidate = base;
+  let n = 2;
+  while (existingIds.has(candidate)) {
+    candidate = `${base}-${n}`;
+    n += 1;
+  }
+  document.getElementById("id-input").value = candidate;
+});
+
 const container = document.getElementById("solutions-container");
 
 function addSolutionRow() {
