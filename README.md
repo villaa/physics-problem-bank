@@ -15,6 +15,11 @@ A searchable, web-based repository of physics problems and solutions.
   access key. That's handled by a small Cloudflare Worker in `worker/` — see
   `worker/README.md` to deploy it once you have a (free) Cloudflare account.
 
+## Setup
+
+New machine? See `SETUP.md` for Windows/macOS/Linux install steps
+(Git, Python, Node.js, GitHub CLI) through to a running admin UI.
+
 ## Managing problems
 
 Two ways to manage content — both call the same underlying logic
