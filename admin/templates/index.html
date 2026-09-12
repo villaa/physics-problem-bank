@@ -86,7 +86,15 @@
         </div>
         <div>
           <label>Tags (comma separated)</label>
-          <input type="text" name="tags" />
+          <input type="text" id="tags-input" name="tags" />
+          {% if all_tags %}
+          <div id="tag-suggestions" style="display:flex; flex-wrap:wrap; gap:4px; margin-top:6px;">
+            {% for t in all_tags %}
+            <button type="button" class="tag-chip" data-tag="{{ t }}"
+                    style="font-size:0.75rem; padding:2px 8px; border-radius:999px; border:1px solid var(--border); background:var(--bg); color:var(--text-dim); cursor:pointer;">{{ t }}</button>
+            {% endfor %}
+          </div>
+          {% endif %}
         </div>
       </div>
 
@@ -274,6 +282,16 @@ function addSolutionRow() {
 
 document.getElementById("add-solution-btn").addEventListener("click", addSolutionRow);
 addSolutionRow();
+
+const tagsInput = document.getElementById("tags-input");
+document.querySelectorAll("#tag-suggestions .tag-chip").forEach((chip) => {
+  chip.addEventListener("click", () => {
+    const current = tagsInput.value.split(",").map((t) => t.trim()).filter(Boolean);
+    const tag = chip.dataset.tag;
+    if (!current.includes(tag)) current.push(tag);
+    tagsInput.value = current.join(", ");
+  });
+});
 </script>
 </body>
 </html>

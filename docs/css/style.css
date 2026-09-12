@@ -81,6 +81,31 @@ header p {
   min-width: 0;
 }
 
+.tag-filter {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 0 20px 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tag-chip {
+  font-size: 0.75rem;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text-dim);
+  cursor: pointer;
+}
+
+.tag-chip.active {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+}
+
 main {
   max-width: 1100px;
   margin: 0 auto;

@@ -2,6 +2,7 @@ const state = {
   problems: [],
   filtered: [],
   worksheet: new Set(),
+  activeTags: new Set(),
 };
 
 const grid = document.getElementById("grid");
@@ -9,6 +10,7 @@ const emptyState = document.getElementById("empty");
 const searchInput = document.getElementById("search");
 const subjectFilter = document.getElementById("subject-filter");
 const difficultyFilter = document.getElementById("difficulty-filter");
+const tagFilter = document.getElementById("tag-filter");
 const tray = document.getElementById("tray");
 const trayCount = document.getElementById("tray-count");
 const overlay = document.getElementById("overlay");
@@ -18,6 +20,7 @@ async function loadProblems() {
   const res = await fetch("data/problems.json");
   state.problems = await res.json();
   populateSubjects();
+  populateTags();
   applyFilters();
 }
 
@@ -31,6 +34,24 @@ function populateSubjects() {
   }
 }
 
+function populateTags() {
+  const tags = [...new Set(state.problems.flatMap((p) => p.tags || []))].sort();
+  tagFilter.innerHTML = "";
+  for (const t of tags) {
+    const chip = document.createElement("button");
+    chip.type = "button";
+    chip.className = "tag-chip";
+    chip.textContent = t;
+    chip.addEventListener("click", () => {
+      if (state.activeTags.has(t)) state.activeTags.delete(t);
+      else state.activeTags.add(t);
+      chip.classList.toggle("active");
+      applyFilters();
+    });
+    tagFilter.appendChild(chip);
+  }
+}
+
 function applyFilters() {
   const q = searchInput.value.trim().toLowerCase();
   const subject = subjectFilter.value;
@@ -39,6 +60,9 @@ function applyFilters() {
   state.filtered = state.problems.filter((p) => {
     if (subject && p.subject !== subject) return false;
     if (difficulty && p.difficulty !== difficulty) return false;
+    if (state.activeTags.size && !(p.tags || []).some((t) => state.activeTags.has(t))) {
+      return false;
+    }
     if (q) {
       const haystack = [p.id, p.subject, p.topic, p.source, ...(p.tags || [])]
         .join(" ")

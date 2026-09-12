@@ -42,6 +42,7 @@ def run_git(*args):
 def index():
     problems = bank.load_problems()
     subjects = sorted({p["subject"] for p in problems})
+    all_tags = sorted({t for p in problems for t in p.get("tags", [])})
     status = run_git("status", "--porcelain", "--", "docs")
     unpublished = bool(status.stdout.strip())
     key_counts = {p["id"]: bank.key_count(p["id"]) for p in problems if p.get("protected")}
@@ -49,6 +50,7 @@ def index():
         "index.html",
         problems=problems,
         subjects=subjects,
+        all_tags=all_tags,
         difficulties=DIFFICULTIES,
         types=TYPES,
         unpublished=unpublished,
