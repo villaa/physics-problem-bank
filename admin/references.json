@@ -4,6 +4,10 @@
     "bibtex": ""
   },
   {
+    "label": "Test Auto-Commit Ref",
+    "bibtex": ""
+  },
+  {
     "label": "University Physics, Young & Freedman",
     "bibtex": "@book{young2019university,\r\n  title={University Physics},\r\n  author={Young, H.D. and Freedman, R.A.},\r\n  isbn={9780135216118},\r\n  lccn={2018042240},\r\n  url={https://books.google.com/books?id=PULlxAEACAAJ},\r\n  year={2019},\r\n  publisher={Pearson}\r\n}"
   }
