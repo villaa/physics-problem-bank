@@ -18,19 +18,19 @@ shift 3
 
 KEY_HASH=$(printf '%s' "$PLAINTEXT_KEY" | sha256sum | cut -d' ' -f1)
 
-wrangler kv key put --binding=PROBLEM_KEYS "$PROBLEM_ID" \
-  "{\"keyHash\":\"$KEY_HASH\"}"
+npx wrangler kv key put --binding=PROBLEM_KEYS "$PROBLEM_ID" \
+  "{\"keyHash\":\"$KEY_HASH\"}" --remote
 
-wrangler r2 object put \
+npx wrangler r2 object put \
   "physics-problem-bank-protected/$PROBLEM_ID/statement.pdf" \
-  --file="$STATEMENT_PDF"
+  --file="$STATEMENT_PDF" --remote
 
 for pair in "$@"; do
   NAME="${pair%%:*}"
   PDF_PATH="${pair#*:}"
-  wrangler r2 object put \
+  npx wrangler r2 object put \
     "physics-problem-bank-protected/$PROBLEM_ID/solutions/$NAME.pdf" \
-    --file="$PDF_PATH"
+    --file="$PDF_PATH" --remote
 done
 
 echo ""

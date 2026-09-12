@@ -4,7 +4,7 @@ compatibility_date = "2026-01-01"
 
 [[kv_namespaces]]
 binding = "PROBLEM_KEYS"
-id = "REPLACE_AFTER_WRANGLER_KV_CREATE"
+id = "0354a1552c4b495fba9d2f04b82787ca"
 
 [[r2_buckets]]
 binding = "PROTECTED_PDFS"
